@@ -1,0 +1,17 @@
+{
+    "name": "MultiplayerFramework.Sample",
+    "rootNamespace": "",
+    "references": [
+        "GUID:a0194dcd68578a44991eac9815199e23",
+        "GUID:8b9fbb18e188bc64d9db0b3ef87669ea"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
