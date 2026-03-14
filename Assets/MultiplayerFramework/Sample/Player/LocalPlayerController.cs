@@ -1,4 +1,5 @@
 using MultiplayerFramework.Runtime.Core.Tick;
+using MultiplayerFramework.Runtime.Gameplay.Combat;
 using MultiplayerFramework.Runtime.Gameplay.Input;
 using MultiplayerFramework.Sample.Combat;
 using MultiplayerFramework.Sample.Player;
@@ -11,6 +12,10 @@ namespace MultiplayerFramework.Runtime.Sample.Player
     {
         [Header("References")]
         [SerializeField] private FixedTickScheduler scheduler;
+        [SerializeField] private AttackResolver attackResolver;
+
+        [Header("Network")]
+        [SerializeField] private int playerId = 1;
 
         [Header("Movement")]
         [SerializeField] private float moveSpeed = 5f;
@@ -85,41 +90,19 @@ namespace MultiplayerFramework.Runtime.Sample.Player
 
             if (result.TriggerAttack)
             {
-                PerformAttack(context.Tick);
+                attackResolver?.TryResolveAttack(transform, playerId, context.Tick);
             }
 
             _inputBuffer.ClearBefore(context.Tick - 2);
 
+            /*
             Debug.Log(
                 $"Tick={context.Tick}, " +
                 $"Move={command.Move}, " +
                 $"Pos={_stateMachine.CurrentState.Position}, " +
                 $"State={_stateMachine.CurrentState.MotionState}");
+            */
         }
-
-        private void PerformAttack(int tick)
-        {
-            Debug.LogError("TEST");
-            PlayerState state = _stateMachine.CurrentState;
-
-            Vector3 attackCenter = state.Position + state.Facing.normalized * attackRange;
-            Collider[] hits = Physics.OverlapSphere(
-                attackCenter,
-                attackRadius,
-                attackTargetMask,
-                QueryTriggerInteraction.Ignore);
-
-            for (int i = 0; i < hits.Length; i++)
-            {
-                if (hits[i].TryGetComponent(out SampleDamageable damageable))
-                {
-                    damageable.ApplyDamage(attackDamage);
-                }
-            }
-
-            Debug.LogError($"[Attack] Tick={tick}, HitCount={hits.Length}");
-        }
-
 
         private static PlayerInputFrame CollectFrameInput()
         {
@@ -138,6 +121,7 @@ namespace MultiplayerFramework.Runtime.Sample.Player
             };
         }
 
+        /*
         private void OnDrawGizmosSelected()
         {
             if (!Application.isPlaying || _stateMachine == null)
@@ -154,6 +138,7 @@ namespace MultiplayerFramework.Runtime.Sample.Player
             Gizmos.color = Color.red;
             Gizmos.DrawWireSphere(attackCenter, attackRadius);
         }
+        */
     }
 }
 

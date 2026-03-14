@@ -33,7 +33,7 @@ namespace MultiplayerFramework.Sample
 
         private void HandleTick(TickContext context)
         {
-            Debug.Log($"Tick={context.Tick}, TickDt={context.DeltaTime:F4}, Elapsed={context.ElapsedTime:F2}");
+            // Debug.Log($"Tick={context.Tick}, TickDt={context.DeltaTime:F4}, Elapsed={context.ElapsedTime:F2}");
         }
     }
 
