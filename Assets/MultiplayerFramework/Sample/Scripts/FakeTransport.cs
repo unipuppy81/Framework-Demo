@@ -39,7 +39,7 @@ namespace MultiplayerFramework.Sample
             OnTransportEvent?.Invoke(new NetworkTransportEvent(NetworkTransportEventType.Disconnected));
         }
 
-        public void Send(byte[] data)
+        public void Send(byte[] data, string targetEndpoint)
         {
             // 실제 전송 대신 마지막 전송 데이터 보관
             LastSentData = data;
@@ -57,7 +57,10 @@ namespace MultiplayerFramework.Sample
         /// <param name="data"></param>
         public void SimulateReceive(byte[] data)
         {
-            OnTransportEvent?.Invoke(new NetworkTransportEvent(NetworkTransportEventType.DataReceived, data));
+            OnTransportEvent?.Invoke(
+                new NetworkTransportEvent(NetworkTransportEventType.DataReceived, 
+                remoteEndpoint: "client-a", 
+                data: data));
         }
 
         /// <summary>
@@ -66,8 +69,7 @@ namespace MultiplayerFramework.Sample
         /// </summary>
         public void SimulateError(string message)
         {
-            OnTransportEvent?.Invoke(
-                new NetworkTransportEvent(NetworkTransportEventType.Error, errorMessage: message));
+            OnTransportEvent?.Invoke(new NetworkTransportEvent(NetworkTransportEventType.Error, errorMessage: message));
         }
     }
 }

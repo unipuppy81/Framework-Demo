@@ -48,11 +48,11 @@ namespace MultiplayerFramework.Runtime.Core.Session
             _transport.Disconnect();
         }
 
-        public void Send(NetworkEnvelope message)
+        public void Send(NetworkEnvelope message, string targetEndpoint)
         {
             // 메시지 객체를 직렬화
             byte[] serializedData = _serializer.Serialize(message);
-            _transport.Send(serializedData);
+            _transport.Send(serializedData, targetEndpoint);
         }
 
         public void Poll()
