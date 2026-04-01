@@ -43,7 +43,7 @@ namespace MultiplayerFramework.Samples.Transport
         {
             if (transportEvent.Type == NetworkTransportEventType.DataReceived)
             {
-                string message = System.Text.Encoding.UTF8.GetString(transportEvent.Data);
+                string message = System.Text.Encoding.UTF8.GetString(transportEvent.Payload);
                 Debug.Log($"[ClientB] Received From={transportEvent.RemoteEndpoint}, Message={message}");
                 return;
             }

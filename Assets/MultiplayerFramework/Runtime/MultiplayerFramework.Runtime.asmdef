@@ -2,7 +2,9 @@
     "name": "MultiplayerFramework.Runtime",
     "rootNamespace": "",
     "references": [
-        "GUID:8b9fbb18e188bc64d9db0b3ef87669ea"
+        "GUID:8b9fbb18e188bc64d9db0b3ef87669ea",
+        "GUID:f2d49d9fa7e7eb3418e39723a7d3b92f",
+        "GUID:e0cd26848372d4e5c891c569017e11f1"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

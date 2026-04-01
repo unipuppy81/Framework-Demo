@@ -20,7 +20,11 @@ namespace MultiplayerFramework.Runtime.Netcode.Messages
         Spawn = 4,
         Despawn = 5,
         
+        // 접속 관련
+        Join = 6,
+        Leave = 7,
+
         // 디버그
-        Diagnostic = 6
+        Diagnostic
     }
 }

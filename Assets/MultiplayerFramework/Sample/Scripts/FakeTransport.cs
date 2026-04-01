@@ -60,7 +60,7 @@ namespace MultiplayerFramework.Sample
             OnTransportEvent?.Invoke(
                 new NetworkTransportEvent(NetworkTransportEventType.DataReceived, 
                 remoteEndpoint: "client-a", 
-                data: data));
+                payload: data));
         }
 
         /// <summary>

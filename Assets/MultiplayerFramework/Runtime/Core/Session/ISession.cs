@@ -39,6 +39,9 @@ namespace MultiplayerFramework.Runtime.Core.Session
         void Connect(string endpoint);
         void Disconnect();
         void Send(NetworkEnvelope message, string targetEndpoint);
+        /// <summary>
+        /// 확인해서 처리하는 함수
+        /// </summary>
         void Poll();
     }
 }

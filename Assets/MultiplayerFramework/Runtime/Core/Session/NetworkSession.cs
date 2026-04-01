@@ -73,7 +73,7 @@ namespace MultiplayerFramework.Runtime.Core.Session
                     break;
 
                 case NetworkTransportEventType.DataReceived:
-                    HandleReceivedData(transportEvent.Data);
+                    HandleReceivedData(transportEvent.Payload);
                     break;
 
                 case NetworkTransportEventType.Error:

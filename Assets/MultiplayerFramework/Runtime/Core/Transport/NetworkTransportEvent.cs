@@ -1,11 +1,11 @@
-using System.Collections;
-using System.Collections.Generic;
-using UnityEngine;
-
 namespace MultiplayerFramework.Runtime.Core.Transport
 {
     /// <summary>
     /// Transport 계층에서 Session 계층으로 전달되는 이벤트 데이터
+    /// 
+    /// ConnectionId:
+    /// - 클라이언트 모드에서는 보통 0
+    /// - 서버 모드에서는 연결된 클라이언트 식별용 index
     /// </summary>
     public readonly struct NetworkTransportEvent
     {
@@ -21,7 +21,9 @@ namespace MultiplayerFramework.Runtime.Core.Transport
         /// </summary>
         public string RemoteEndpoint { get; }
 
-        public byte[] Data { get; }
+        public byte[] Payload { get; }
+
+        public string DiagnosticMessage { get; }
         public string ErrorMessage { get; }
 
         /// <summary>
@@ -29,17 +31,19 @@ namespace MultiplayerFramework.Runtime.Core.Transport
         /// </summary>
         /// <param name="type">이벤트 타입</param>
         /// <param name="remoteEndpoint">상대 endpoint</param>
-        /// <param name="data">수신 데이터</param>
+        /// <param name="payload">수신 데이터</param>
         /// <param name="errorMessage">에러 메시지</param>
         public NetworkTransportEvent(
             NetworkTransportEventType type,
             string remoteEndpoint = null,
-            byte[] data = null, 
+            byte[] payload = null, 
+            string diagnosticMessage = null,
             string errorMessage = null)
         {
             Type = type;
             RemoteEndpoint = remoteEndpoint;
-            Data = data;
+            Payload = payload;
+            DiagnosticMessage = diagnosticMessage;
             ErrorMessage = errorMessage;
         }
 
@@ -71,7 +75,15 @@ namespace MultiplayerFramework.Runtime.Core.Transport
             return new NetworkTransportEvent(
                 NetworkTransportEventType.DataReceived,
                 remoteEndpoint: remoteEndpoint,
-                data: data);
+                payload: data);
+        }
+
+        public static NetworkTransportEvent CreateDiagnostic(string _diagnosticMessage)
+        {
+            return new NetworkTransportEvent(
+                NetworkTransportEventType.Diagnostic,
+                diagnosticMessage: _diagnosticMessage
+                );
         }
 
         /// <summary>

@@ -4,6 +4,31 @@ using UnityEngine;
 namespace MultiplayerFramework.Runtime.Core.Transport
 {
     /// <summary>
+    /// 현재 Transport가 어떤 모드로 동작 중인지 구분합니다.
+    /// </summary>
+    public enum TransportMode
+    {
+        None,
+        Host,
+        Client
+    }
+
+
+
+    /// <summary>
+    /// Transport가 Session에 전달하는 이벤트 종류
+    /// </summary>
+    public enum NetworkTransportEventType : byte
+    {
+        None = 0,
+        Connected = 1,
+        Disconnected = 2,
+        DataReceived = 3,
+        Diagnostic = 4,
+        Error
+    }
+
+    /// <summary>
     /// 네트워크 전송 계층 공통 인터페이스
     /// 실제 소켓, Photon, Loopback, Fake Transport 등이 이 인터페이스를 구현
     /// Session은 이 인터페이스만 알고, 하위 구현 방식은 몰라도 되도록 분리

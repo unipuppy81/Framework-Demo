@@ -62,7 +62,7 @@ namespace MultiplayerFramework.Runtime.Gameplay.Respawn
 
         public void CompleteRespawn(Vector3 position, Quaternion rotation)
         {
-            Debug.Log("ComleteRespawn");
+            Debug.Log("Complete Respawn");
             transform.SetPositionAndRotation(position, rotation);
 
             if (_health != null)
