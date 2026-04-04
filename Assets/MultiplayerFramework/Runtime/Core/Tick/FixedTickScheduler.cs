@@ -10,7 +10,7 @@ namespace MultiplayerFramework.Runtime.Core.Tick
         [SerializeField] private int tickRate = 30;
         [SerializeField] private int maxTicksPerFrame = 4;
 
-        [SerializeField] private bool _isRunning;
+        [SerializeField] private bool _isRunning = false;
 
         private float _tickInterval;
         private int _currentTick;
@@ -26,14 +26,26 @@ namespace MultiplayerFramework.Runtime.Core.Tick
 
         private void Awake()
         {
-            // RebuildTickInterval();
+            _isRunning = false;
+            tickRate = 30;
+            maxTicksPerFrame = 4;
+
+            RebuildTickInterval();
         }
 
         public void StartTick(int startTick = 0)
         {
+            if (_isRunning)
+                return;
+
+            SetTickRate(30);
             _currentTick = startTick;
             _elapsedTime = _currentTick * _tickInterval;
+
+            Debug.Log($"[TickScheduler][StartTick]   isRunning={_isRunning}");
             _isRunning = true;
+            Debug.Log($"[TickScheduler][StartTick]   isRunning={_isRunning}");
+
         }
 
         public void StopTick()
@@ -68,6 +80,7 @@ namespace MultiplayerFramework.Runtime.Core.Tick
 
         private void Update()
         {
+            Debug.Log($"[TickScheduler][Update] obj={gameObject.name}, id={GetInstanceID()}, isRunning={_isRunning}", this);
             if (!_isRunning)
                 return;
 
@@ -80,6 +93,7 @@ namespace MultiplayerFramework.Runtime.Core.Tick
 
             while(_accmulator.CanStep(_tickInterval) && processedTicks < maxTicksPerFrame)
             {
+
                 _currentTick++;
                 _elapsedTime += _tickInterval;
 

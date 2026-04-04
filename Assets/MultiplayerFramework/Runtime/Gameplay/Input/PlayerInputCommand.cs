@@ -11,18 +11,30 @@ namespace MultiplayerFramework.Runtime.Gameplay.Input
     {
         public int Tick;
         public Vector2 Move;
-        public bool DashPressed;
+        public bool JumpPressed;
         public bool AttackPressed;
+
+        public PlayerInputCommand(int tick, Vector2 move, bool jumpPressed, bool attackPressed)
+        {
+            Tick = tick;
+            Move = move;
+            JumpPressed = jumpPressed;
+            AttackPressed = attackPressed;
+        }
 
         public static PlayerInputCommand Default(int tick)
         {
-            return new PlayerInputCommand
-            {
-                Tick = tick,
-                Move = Vector2.zero,
-                DashPressed = false,
-                AttackPressed = false
-            };
+            return new PlayerInputCommand(
+                tick,
+                Vector2.zero,
+                false,
+                false
+            );
+        }
+
+        public bool HasMovement()
+        {
+            return Move.sqrMagnitude > 0.0001f;
         }
     }
 }

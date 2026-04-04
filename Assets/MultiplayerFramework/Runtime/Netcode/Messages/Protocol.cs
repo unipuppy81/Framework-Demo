@@ -113,4 +113,16 @@ namespace MultiplayerFramework.Runtime.Netcode.Messages
         public int Tick;
         public NetworkId NetworkId;
     }
+
+
+    [Serializable]
+    public struct PlayerStateMessage
+    {
+        public PlayerStateSnapshot Snapshot;
+
+        public PlayerStateMessage(PlayerStateSnapshot snapshot)
+        {
+            Snapshot = snapshot;
+        }
+    }
 }

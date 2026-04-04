@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -10,6 +11,17 @@ namespace MultiplayerFramework.Runtime.Gameplay.Input
         private readonly Dictionary<int, PlayerInputCommand> _commands = new();
         public void Store(PlayerInputCommand command)
         {
+            if (_commands.TryGetValue(command.Tick, out PlayerInputCommand existing))
+            {
+                existing.Move = command.Move;
+
+                existing.JumpPressed |= command.JumpPressed;
+                existing.AttackPressed |= command.AttackPressed;
+
+                _commands[command.Tick] = existing;
+                return;
+            }
+
             _commands[command.Tick] = command;
         }
         

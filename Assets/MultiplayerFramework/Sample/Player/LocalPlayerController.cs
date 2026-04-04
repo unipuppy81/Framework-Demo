@@ -76,7 +76,7 @@ namespace MultiplayerFramework.Runtime.Sample.Player
             {
                 Tick = nextTick,
                 Move = _latestFrameInput.Move,
-                DashPressed = _latestFrameInput.DashPressed,
+                JumpPressed = _latestFrameInput.JumpPressed,
                 AttackPressed = _latestFrameInput.AttackPressed
             };
 
@@ -94,14 +94,6 @@ namespace MultiplayerFramework.Runtime.Sample.Player
             }
 
             _inputBuffer.ClearBefore(context.Tick - 2);
-
-            /*
-            Debug.Log(
-                $"Tick={context.Tick}, " +
-                $"Move={command.Move}, " +
-                $"Pos={_stateMachine.CurrentState.Position}, " +
-                $"State={_stateMachine.CurrentState.MotionState}");
-            */
         }
 
         private static PlayerInputFrame CollectFrameInput()
@@ -116,7 +108,7 @@ namespace MultiplayerFramework.Runtime.Sample.Player
             return new PlayerInputFrame
             {
                 Move = move,
-                DashPressed = Input.GetKeyDown(KeyCode.Space),
+                JumpPressed = Input.GetKeyDown(KeyCode.Space),
                 AttackPressed = Input.GetKeyDown(KeyCode.Q)
             };
         }

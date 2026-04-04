@@ -10,7 +10,7 @@ namespace MultiplayerFramework.Runtime.Gameplay.Input
     public struct PlayerInputFrame
     {
         public Vector2 Move;
-        public bool DashPressed;
+        public bool JumpPressed;
         public bool AttackPressed;
     }
 }

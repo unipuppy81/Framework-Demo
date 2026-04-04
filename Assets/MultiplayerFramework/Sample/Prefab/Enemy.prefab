@@ -117,6 +117,7 @@ GameObject:
   - component: {fileID: 8227403615164140347}
   - component: {fileID: 5758740537083475092}
   - component: {fileID: -6187690499585932216}
+  - component: {fileID: 4904979289479513576}
   m_Layer: 6
   m_Name: Enemy
   m_TagString: Untagged
@@ -193,5 +194,21 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   PrefabMgr: {fileID: 0}
   _clientAGameObject: {fileID: 0}
+  _playerATickScheduler: {fileID: 4904979289479513576}
   _playerA_Name: PlayerA
   _playerANetObject: {fileID: 5758740537083475092}
+--- !u!114 &4904979289479513576
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8412288893176905350}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e1f2d606766a1d541b145db482283ad5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  tickRate: 30
+  maxTicksPerFrame: 4
+  _isRunning: 0

@@ -117,7 +117,7 @@ namespace MultiplayerFramework.Runtime.Sample.Player
 
         private void HandleDash(PlayerInputCommand command, Vector3 moveDirection)
         {
-            if (!command.DashPressed)
+            if (!command.JumpPressed)
                 return;
 
             if (_state.DashRemainingTime > 0f)

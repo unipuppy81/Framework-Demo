@@ -3,6 +3,7 @@ using MultiplayerFramework.Runtime.Core.Session;
 using MultiplayerFramework.Runtime.Core.Tick;
 using MultiplayerFramework.Runtime.Core.Transport;
 using MultiplayerFramework.Runtime.Netcode.Messages;
+using MultiplayerFramework.Runtime.Netcode.Messages.Event;
 using MultiplayerFramework.Runtime.NetCode.Objects;
 using MultiplayerFramework.Samples;
 using System.Collections;
@@ -22,7 +23,7 @@ public class Client : MonoBehaviour
     private JsonMessageSerializer _serializerA;
     private NetworkSession _sessionA;
     private SessionDiagnosticsLogger _loggerA;
-    private FixedTickScheduler _playerATickScheduler;
+    [SerializeField] private FixedTickScheduler _playerATickScheduler;
 
     [SerializeField] private string _playerA_Name = "ClientA";
 
@@ -46,7 +47,6 @@ public class Client : MonoBehaviour
         _serializerA = new JsonMessageSerializer();
         _sessionA = new NetworkSession(_transportA, _serializerA);
         _loggerA = new SessionDiagnosticsLogger();
-        _playerATickScheduler = new FixedTickScheduler();
         PrefabMgr = new PrefabManager();
 
         bool result = _transportA.StartClient(address, port);
@@ -121,6 +121,31 @@ public class Client : MonoBehaviour
                             }
                         }
                         break;
+                    case NetworkMessageType.State:
+                        {
+                            if (_serializerA.TryDeserializeT(dataReceivedEnvelope.Payload, out PlayerStateMessage spawnMessage))
+                            {
+                                PlayerStateSnapshot temp = spawnMessage.Snapshot;
+                                Debug.LogWarning($"<color=cyan>[Player A]</color> Receive Snapshot {temp.NetworkId}, {temp.Hp}, {temp.Rotation}, {temp.Position}");
+                            }
+                        }
+                        break;
+                    case NetworkMessageType.Event:
+                        {
+                            if (_serializerA.TryDeserializeT(dataReceivedEnvelope.Payload, out GameplayEventMessage gameEventMessage))
+                            {
+                                switch(gameEventMessage.EventType)
+                                {
+                                    case GameplayEventType.Jump:
+                                        {
+                                            Debug.LogWarning($"<color=cyan>[Player A]</color> Receive Jump");
+                                        }
+                                        break;
+                                }
+                            }
+                        }
+                        break;
+
                 }
                 break;
 

@@ -2,7 +2,9 @@ using MultiplayerFramework.Runtime.Core.Diagnostics;
 using MultiplayerFramework.Runtime.Core.Session;
 using MultiplayerFramework.Runtime.Core.Tick;
 using MultiplayerFramework.Runtime.Core.Transport;
+using MultiplayerFramework.Runtime.Gameplay.Input;
 using MultiplayerFramework.Runtime.Netcode.Messages;
+using MultiplayerFramework.Runtime.Netcode.Messages.Event;
 using MultiplayerFramework.Runtime.NetCode.Objects;
 using MultiplayerFramework.Samples;
 using System;
@@ -23,9 +25,19 @@ public class Host : MonoBehaviour
     private JsonMessageSerializer _hostSerializer;
     private NetworkSession _hostSession;
     private SessionDiagnosticsLogger _hostLogger;
-    private FixedTickScheduler _hostTickScheduler;
+    [SerializeField] private FixedTickScheduler _hostTickScheduler;
+    private readonly InputBuffer _hostInputBuffer = new();
 
+
+    [Header("Input")]
+    private PlayerInputCommand _lastConsumedCommand;
+    [SerializeField] private Transform _hostPlayerTransform;
+    [SerializeField] private int _hostHp = 100;
+    [SerializeField] private float _moveSpeed = 5f;
     [SerializeField] private bool _isStarted;
+
+    private bool _tickBound;
+    
     [Space(30)]
 
     [SerializeField] private GameObject _hostGameObject;
@@ -37,8 +49,14 @@ public class Host : MonoBehaviour
     [SerializeField] private NetworkId _hostNetworkId;
     [SerializeField] private NetworkObject _hostNetObject;
 
-    void Update()
+    private void Awake()
     {
+        BindTick();
+    }
+    private void Update()
+    {
+        CollectHostInput();
+
         _hostTransport?.Poll();
         ConsumeEvent_Host();
     }
@@ -46,6 +64,12 @@ public class Host : MonoBehaviour
     private void OnDestroy()
     {
         _hostTransport?.Dispose();
+
+        if (_tickBound && _hostTickScheduler != null)
+        {
+            _hostTickScheduler.OnTick -= HandleHostTick;
+            _tickBound = false;
+        }
     }
 
     public void ConnectHost(GameManager gm, ushort port)
@@ -56,7 +80,6 @@ public class Host : MonoBehaviour
         _hostLogger = new SessionDiagnosticsLogger();
         _networkIdGenerator = new NetworkIdGenerator();
         _networkObjectRegistry = new NetworkObjectRegistry();
-        _hostTickScheduler = new FixedTickScheduler();
         PrefabMgr = new PrefabManager();
         GameMgr = gm;
 
@@ -195,6 +218,162 @@ public class Host : MonoBehaviour
             Debug.Log("<color=red>[Host]</color> SpawnMessage 전송 실패");
         }
     }
+
+    private void SendJumpEvent(int _tick)
+    {
+        GameplayEventMessage message = new GameplayEventMessage(
+            tick: _tick,
+            networkId: 1,
+            eventType: GameplayEventType.Jump,
+            value: 0
+        );
+
+        byte[] payload = _hostSerializer.SerializeT(message);
+
+        NetworkEnvelope envelope = new NetworkEnvelope(
+            NetworkMessageType.Event,
+            senderId: _hostNetworkId,
+            tick: message.Tick,
+            payload: payload
+        );
+
+        byte[] data = _hostSerializer.Serialize(envelope);
+
+        if (_hostTransport.SendTo(1, new ArraySegment<byte>(data)))
+        {
+            Debug.Log("<color=red>[Host]</color> Event Message Send Succeeded");
+        }
+        else
+        {
+            Debug.Log("<color=red>[Host]</color> Event Message Send Failed");
+        }
+    }
     #endregion
 
+    #region 틱 관련
+    private void BindTick()
+    {
+        if (_tickBound || _hostTickScheduler == null)
+            return;
+
+        _hostTickScheduler.OnTick += HandleHostTick;
+        _tickBound = true;
+        _hostPlayerTransform = GetComponent<Transform>();
+    }
+
+    private void HandleHostTick(TickContext context)
+    {
+        // Debug.Log($"<color=red>[Host]</color> Tick={context.Tick}");
+
+        // 1. host 입력/명령 소모
+        ConsumeHostInput(context);
+
+        // 2. host authoritative 시뮬레이션 진행
+        SimulateHostWorld(context);
+
+        // 3. 상태 스냅샷 전송
+        SendStateSnapshot(context.Tick);
+    }
+
+    private void ConsumeHostInput(TickContext context)
+    {
+        Debug.Log($"<color=red>[Host]</color> ConsumeHostInput={context.Tick}");
+        _lastConsumedCommand = _hostInputBuffer.GetOrDefault(context.Tick);
+    }
+
+    private void SimulateHostWorld(TickContext context)
+    {
+        Debug.Log($"<color=red>[Host]</color> SimulateHostWorld={context.Tick}");
+
+        if (_hostPlayerTransform == null)
+            return;
+
+        // 1. 이동
+        Vector2 move = _lastConsumedCommand.Move;
+        Vector3 moveDir = new Vector3(move.x, 0f, move.y);
+        _hostPlayerTransform.position += moveDir * _moveSpeed * context.DeltaTime;
+
+        // 2. 회전
+        if (moveDir.sqrMagnitude > 0.0001f)
+        {
+            _hostPlayerTransform.forward = moveDir.normalized;
+        }
+
+        // 3. 이벤트
+        if (_lastConsumedCommand.JumpPressed)
+        {
+            SendJumpEvent(context.Tick);
+        }
+
+        Debug.Log($"<color=red>[Host]</color> SimulateHostWorld Finished={context.Tick}");
+    }
+
+    private void SendStateSnapshot(int tick)
+    {
+        Debug.Log($"<color=red>[Host]</color> SendStateSnapshot");
+        // client 로 state 전송
+        if (_hostPlayerTransform == null)
+            return;
+
+        PlayerStateSnapshot snapshot = new PlayerStateSnapshot(
+            tick,
+            1, // host player networkId
+            _hostPlayerTransform.position,
+            _hostPlayerTransform.rotation,
+            _hostHp
+        );
+
+        PlayerStateMessage message = new PlayerStateMessage(snapshot);
+
+
+
+        byte[] payload = _hostSerializer.SerializeT(message);
+
+        NetworkEnvelope resultEnvelope =
+                new NetworkEnvelope(
+                    NetworkMessageType.State,
+                    senderId: _hostNetworkId,
+                    tick: _hostTickScheduler.CurrentTick + 2,
+                    payload
+                );
+
+
+        byte[] resultData = _hostSerializer.Serialize(resultEnvelope);
+        if (_hostTransport.SendTo(1, new ArraySegment<byte>(resultData)))
+        {
+            Debug.Log("<color=red>[Host]</color> Input-State Message Send Successed");
+        }
+        else
+        {
+            Debug.Log("<color=red>[Host]</color> Input-State Message Send Failed");
+        }
+    }
+    #endregion
+
+    #region 입력
+    private void CollectHostInput()
+    {
+        if (_hostTickScheduler == null)
+            return;
+
+        Vector2 move = new Vector2(
+            Input.GetAxisRaw("Horizontal"),
+            Input.GetAxisRaw("Vertical")
+        );
+
+        bool attackPressed = Input.GetMouseButtonDown(0);
+        bool jumpPressed = Input.GetKeyDown(KeyCode.Space);
+
+        int targetTick = _hostTickScheduler.CurrentTick + 1;
+
+        PlayerInputCommand command = new PlayerInputCommand(
+            targetTick,
+            move,
+            jumpPressed,
+            attackPressed
+        );
+
+        _hostInputBuffer.Store(command);
+    }
+    #endregion
 }
