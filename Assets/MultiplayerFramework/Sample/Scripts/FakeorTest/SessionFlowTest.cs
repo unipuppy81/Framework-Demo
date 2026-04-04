@@ -1,5 +1,6 @@
 using MultiplayerFramework.Runtime.Core.Session;
 using MultiplayerFramework.Runtime.Netcode.Messages;
+using MultiplayerFramework.Runtime.NetCode.Objects;
 using System.Text;
 using UnityEngine;
 
@@ -57,9 +58,11 @@ namespace MultiplayerFramework.Sample
         {
             Debug.Log("[Test] Send 시작");
 
+            NetworkId test = new NetworkId(1);
+
             NetworkEnvelope outgoingMessage = new NetworkEnvelope(
                 NetworkMessageType.Input,
-                senderId: 1,
+                senderId: test,
                 tick: 100,
                 payload: Encoding.UTF8.GetBytes("Hello From Game"));
 
@@ -79,9 +82,11 @@ namespace MultiplayerFramework.Sample
         {
             Debug.Log("[Test] Receive 시작");
 
+            NetworkId test = new NetworkId(99);
+
             NetworkEnvelope incomingMessage = new NetworkEnvelope(
                 NetworkMessageType.State,
-                senderId: 99,
+                senderId: test,
                 tick: 200,
                 payload: Encoding.UTF8.GetBytes("Hello From Remote"));
 

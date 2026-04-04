@@ -71,21 +71,6 @@ namespace MultiplayerFramework.Sample.Networking
             }
         }
 
-        private void OnApplicationQuit()
-        {
-            StopTransport();
-        }
-
-        private void OnDisable()
-        {
-            StopTransport();
-        }
-
-        private void OnDestroy()
-        {
-            StopTransport();
-        }
-
         public void StartTransport()
         {
             if (_transport == null)
@@ -101,7 +86,7 @@ namespace MultiplayerFramework.Sample.Networking
 
             if (startMode == StartMode.Host)
             {
-                result = _transport.StartServer(port);
+                result = _transport.StartHost(port);
                 _logger.Log(result
                     ? $"[Runner] Host started on port {port}"
                     : $"[Runner] Host start failed on port {port}");

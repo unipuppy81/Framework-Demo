@@ -2,7 +2,7 @@ using MultiplayerFramework.Runtime.NetCode.Objects;
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace MultiplayerFramework.Runtime.Netcode.Objects
+namespace MultiplayerFramework.Runtime.NetCode.Objects
 {
     public class NetworkObjectRegistry
     {
@@ -13,12 +13,6 @@ namespace MultiplayerFramework.Runtime.Netcode.Objects
             if (networkObject == null)
             {
                 Debug.LogError("[NetworkObjectRegistry] Register failed: object is null.");
-                return false;
-            }
-
-            if (!networkObject.NetworkId.IsValid)
-            {
-                Debug.LogError("[NetworkObjectRegistry] Register failed: invalid NetworkId.");
                 return false;
             }
 

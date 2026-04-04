@@ -1,3 +1,4 @@
+using MultiplayerFramework.Runtime.Netcode.Messages;
 using System;
 using System.Collections.Generic;
 
@@ -64,7 +65,10 @@ namespace MultiplayerFramework.Runtime.Core.Transport
             // 연결 성공 이벤트를 큐에 삽입
             _eventQueue.Enqueue(NetworkTransportEvent.CreateConnected(_localEndpoint));
         }
+        public void Connect(JoinMessage jM)
+        {
 
+        }
         public void Disconnect()
         {
             if (IsConnected == false)

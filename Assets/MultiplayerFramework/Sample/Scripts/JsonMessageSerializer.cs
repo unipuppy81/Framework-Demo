@@ -2,6 +2,7 @@ using System.Text;
 using UnityEngine;
 using MultiplayerFramework.Runtime.Core.Serialization;
 using MultiplayerFramework.Runtime.Netcode.Messages;
+using MultiplayerFramework.Runtime.NetCode.Objects;
 
 namespace MultiplayerFramework.Sample
 {
@@ -19,7 +20,7 @@ namespace MultiplayerFramework.Sample
         private struct NetworkEnvelopeDto
         {
             public byte Type;
-            public int SenderId;
+            public NetworkId SenderId;
             public int Tick;
             public string PayloadBase64;
         }

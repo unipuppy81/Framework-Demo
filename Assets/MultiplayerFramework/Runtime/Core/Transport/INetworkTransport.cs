@@ -1,20 +1,9 @@
+using MultiplayerFramework.Runtime.Netcode.Messages;
 using System;
 using UnityEngine;
 
 namespace MultiplayerFramework.Runtime.Core.Transport
 {
-    /// <summary>
-    /// 현재 Transport가 어떤 모드로 동작 중인지 구분합니다.
-    /// </summary>
-    public enum TransportMode
-    {
-        None,
-        Host,
-        Client
-    }
-
-
-
     /// <summary>
     /// Transport가 Session에 전달하는 이벤트 종류
     /// </summary>
@@ -24,7 +13,10 @@ namespace MultiplayerFramework.Runtime.Core.Transport
         Connected = 1,
         Disconnected = 2,
         DataReceived = 3,
-        Diagnostic = 4,
+        Send = 4,
+        Diagnostic = 5,
+        Join = 6,
+        Leave = 7,
         Error
     }
 

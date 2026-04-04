@@ -1,6 +1,6 @@
+using PlasticGui;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using Unity.Collections;
 using Unity.Networking.Transport;
 
@@ -9,14 +9,25 @@ namespace MultiplayerFramework.Runtime.Core.Transport
 {
     public sealed class UnityTransportAdapter : INetworkTransport, IDisposable
     {
+        /// <summary>
+        /// 저수준 네트워크 인터페이스 객체 (소켓 관리자)
+        /// </summary>
         private NetworkDriver _driver;
+
+        /// <summary>
+        /// 특정 원격 피어와의 연결 상태를 나타내는 핸들
+        /// </summary>
         private NetworkConnection _connection;
 
-        private readonly List<NetworkConnection> _serverConnections = new();
+
+        private readonly Dictionary<int, NetworkConnection> _serverConnections = new();
+        private int _nextConnectionId = 1;
+
+
         private readonly Queue<NetworkTransportEvent> _eventQueue = new();
 
 
-        private bool _isServer;
+        private bool _isHost;
         private bool _isStarted;
         private ushort _listenPort;
 
@@ -26,7 +37,7 @@ namespace MultiplayerFramework.Runtime.Core.Transport
         /// 디버깅 상태 확인용
         /// </summary>
         public bool IsStarted => _isStarted;
-        public bool IsServer => _isServer;
+        public bool IsServer => _isHost;
         public ushort ListenPort => _listenPort;
 
         public bool IsConnected => throw new NotImplementedException();
@@ -45,7 +56,7 @@ namespace MultiplayerFramework.Runtime.Core.Transport
             NetworkEndpoint endpoint = NetworkEndpoint.Parse(address, port);
             _connection = _driver.Connect(endpoint);
 
-            _isServer = false;
+            _isHost = false;
             _isStarted = true;
             _listenPort = 0;
 
@@ -56,7 +67,7 @@ namespace MultiplayerFramework.Runtime.Core.Transport
         /// <summary>
         /// 서버(호스트 역할) 모드로 포트를 열고 listen 시작
         /// </summary>
-        public bool StartServer(ushort port)
+        public bool StartHost(ushort port)
         {
             _driver = NetworkDriver.Create();
             _connection = default;
@@ -73,7 +84,7 @@ namespace MultiplayerFramework.Runtime.Core.Transport
 
             _driver.Listen();
 
-            _isServer = true;
+            _isHost = true;
             _isStarted = true;
             _listenPort = port;
 
@@ -92,7 +103,7 @@ namespace MultiplayerFramework.Runtime.Core.Transport
 
             _driver.ScheduleUpdate().Complete();
 
-            if (_isServer)
+            if (_isHost)
             {
                 PollServerAccepts();
                 PollServerConnections();
@@ -127,12 +138,17 @@ namespace MultiplayerFramework.Runtime.Core.Transport
         public bool Send(ArraySegment<byte> payload)
         {
             if (!_isStarted)
+            {
+                UnityEngine.Debug.Log("[Transport] Send Failed, isStarted = false");
+                EnqueueDiagnostic("AAA");
                 return false;
+            }
+ 
 
-            if (_isServer)
+            if (_isHost)
             {
                 EnqueueDiagnostic("[Transport] Send(payload) was called in server mode. Use SendTo(connectionId, payload).");
-                return false;
+                //return false;
             }
 
             return SendToConnection(_connection, payload);
@@ -144,13 +160,12 @@ namespace MultiplayerFramework.Runtime.Core.Transport
         /// </summary>
         public bool SendTo(int connectionId, ArraySegment<byte> payload)
         {
-            if (!_isStarted || !_isServer)
+            if (!_isStarted || !_isHost)
                 return false;
 
-            if (connectionId < 0 || connectionId >= _serverConnections.Count)
+            if (!_serverConnections.TryGetValue(connectionId, out NetworkConnection connection))
                 return false;
 
-            NetworkConnection connection = _serverConnections[connectionId];
             if (!connection.IsCreated)
                 return false;
 
@@ -162,7 +177,7 @@ namespace MultiplayerFramework.Runtime.Core.Transport
         /// </summary>
         public void Broadcast(ArraySegment<byte> payload)
         {
-            if (!_isStarted || !_isServer)
+            if (!_isStarted || !_isHost)
                 return;
 
             for (int i = 0; i < _serverConnections.Count; i++)
@@ -185,7 +200,7 @@ namespace MultiplayerFramework.Runtime.Core.Transport
 
             EnqueueDiagnostic("[Transport] Stopping transport.");
 
-            if (_isServer)
+            if (_isHost)
             {
                 for (int i = 0; i < _serverConnections.Count; i++)
                 {
@@ -202,7 +217,7 @@ namespace MultiplayerFramework.Runtime.Core.Transport
             }
 
             _isStarted = false;
-            _isServer = false;
+            _isHost = false;
             _listenPort = 0;
         }
 
@@ -216,9 +231,10 @@ namespace MultiplayerFramework.Runtime.Core.Transport
             NetworkConnection acceptedConnection;
             while ((acceptedConnection = _driver.Accept()) != default)
             {
-                _serverConnections.Add(acceptedConnection);
+                UnityEngine.Debug.Log("<color=red>[Host]</color> PollServer");
 
-                int connectionId = _serverConnections.Count - 1;
+                int connectionId = _nextConnectionId++;
+                _serverConnections.Add(connectionId, acceptedConnection);
 
                 _eventQueue.Enqueue(NetworkTransportEvent.CreateConnected(connectionId.ToString()));
                 EnqueueDiagnostic($"[Transport] Server accepted client. ConnectionId={connectionId}");
@@ -227,37 +243,41 @@ namespace MultiplayerFramework.Runtime.Core.Transport
 
         private void PollServerConnections()
         {
-            for (int i = 0; i < _serverConnections.Count; i++)
+            var disconnectedIds = new List<int>();
+
+            foreach(var pair in _serverConnections)
             {
-                if (!_serverConnections[i].IsCreated)
+                int connectionId = pair.Key;
+                NetworkConnection connection = pair.Value;
+
+                if (!connection.IsCreated)
                     continue;
 
                 DataStreamReader stream;
                 NetworkEvent.Type eventType;
 
-                while ((eventType = _driver.PopEventForConnection(_serverConnections[i], out stream)) != NetworkEvent.Type.Empty)
+                while ((eventType = _driver.PopEventForConnection(connection, out stream)) != NetworkEvent.Type.Empty)
                 {
                     switch (eventType)
                     {
                         case NetworkEvent.Type.Data:
                             {
                                 byte[] data = ReadBytes(stream);
-                                _eventQueue.Enqueue(NetworkTransportEvent.CreateDataReceived(i.ToString(), data));
+                                _eventQueue.Enqueue(NetworkTransportEvent.CreateDataReceived(connectionId.ToString(), data));
                                 break;
                             }
 
                         case NetworkEvent.Type.Disconnect:
                             {
-                                _eventQueue.Enqueue(NetworkTransportEvent.CreateDisconnected(i.ToString()));
-                                EnqueueDiagnostic($"[Transport] Client disconnected. ConnectionId={i}");
-                                _serverConnections[i] = default;
+                                _eventQueue.Enqueue(NetworkTransportEvent.CreateDisconnected(connectionId.ToString()));
+                                EnqueueDiagnostic($"[Transport] Client disconnected. ConnectionId={connectionId}");
+                                disconnectedIds.Add(connectionId);
                                 break;
                             }
 
                         case NetworkEvent.Type.Connect:
                             {
-                                // 보통 서버 쪽에서는 Accept에서 처리되므로 여기서는 로그만 남깁니다.
-                                EnqueueDiagnostic($"[Transport] Connect event observed on server side. ConnectionId={i}");
+                                UnityEngine.Debug.Log("[Host] Connect");
                                 break;
                             }
                     }
@@ -306,7 +326,11 @@ namespace MultiplayerFramework.Runtime.Core.Transport
         private bool SendToConnection(NetworkConnection connection, ArraySegment<byte> payload)
         {
             if (!connection.IsCreated)
+            {
+                EnqueueDiagnostic("[Transport] BBB");
                 return false;
+            }
+
 
             if (_driver.BeginSend(connection, out DataStreamWriter writer) != 0)
             {
@@ -340,14 +364,6 @@ namespace MultiplayerFramework.Runtime.Core.Transport
             }
 
             return buffer;
-        }
-
-        private void DisposeDriverIfNeeded()
-        {
-            if (_driver.IsCreated)
-            {
-                _driver.Dispose();
-            }
         }
 
         private void EnqueueDiagnostic(string message)

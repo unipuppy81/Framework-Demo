@@ -1,3 +1,4 @@
+using MultiplayerFramework.Runtime.Netcode.Messages;
 using System;
 using System.Collections.Generic;
 
@@ -47,6 +48,12 @@ namespace MultiplayerFramework.Runtime.Core.Transport
         {
             _hub = hub;
             _packetHook = packetHook;
+        }
+
+
+        public void Connect(JoinMessage jM)
+        {
+
         }
 
         /// <summary>

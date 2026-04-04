@@ -1,3 +1,4 @@
+using MultiplayerFramework.Runtime.NetCode.Objects;
 using System;
 using UnityEngine;
 
@@ -11,7 +12,7 @@ namespace MultiplayerFramework.Runtime.Netcode.Messages
     public struct NetworkEnvelope
     {
         public NetworkMessageType Type;
-        public int SenderId;
+        public NetworkId SenderId;
         public int Tick;
 
         /// <summary>
@@ -20,7 +21,7 @@ namespace MultiplayerFramework.Runtime.Netcode.Messages
         /// </summary>
         public byte[] Payload;
 
-        public NetworkEnvelope(NetworkMessageType type, int senderId, int tick, byte[] payload)
+        public NetworkEnvelope(NetworkMessageType type, NetworkId senderId, int tick, byte[] payload)
         {
             Type = type;
             SenderId = senderId;
