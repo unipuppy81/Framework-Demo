@@ -10,6 +10,7 @@ using MultiplayerFramework.Samples;
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using UnityEditor.VersionControl;
 using UnityEngine;
 
 public class Host : MonoBehaviour
@@ -49,16 +50,26 @@ public class Host : MonoBehaviour
     [SerializeField] private NetworkId _hostNetworkId;
     [SerializeField] private NetworkObject _hostNetObject;
 
+
+    [Header("로그")]
+    private RuntimeDiagnosticsCollector _diagnostics;
+    public RuntimeDiagnosticsCollector Diagnostics => _diagnostics;
+
+
     private void Awake()
     {
         BindTick();
+        _diagnostics = new RuntimeDiagnosticsCollector();
     }
     private void Update()
     {
+        _diagnostics.Update(Time.deltaTime);
+
         CollectHostInput();
 
         _hostTransport?.Poll();
         ConsumeEvent_Host();
+
     }
 
     private void OnDestroy()
@@ -105,6 +116,12 @@ public class Host : MonoBehaviour
 
         while (_hostTransport.TryDequeueEvent(out NetworkTransportEvent transportEvent))
         {
+            if (transportEvent.Type == NetworkTransportEventType.Diagnostic)
+            {
+                _diagnostics.ReportMessage(transportEvent.ErrorMessage);
+            }
+
+
             HandleEvent_Host(transportEvent);
         }
     }
@@ -120,6 +137,8 @@ public class Host : MonoBehaviour
                     if (!_hostSerializer.TryDeserialize(data, out NetworkEnvelope envelope))
                         return;
 
+                    _diagnostics.ReportPacketReceived();
+
                     Debug.Log($"<color=red>[Host]</color> {transportEvent.Type.ToString()} - {envelope.Type.ToString()}");
 
                     switch (envelope.Type)
@@ -127,6 +146,16 @@ public class Host : MonoBehaviour
                         case NetworkMessageType.Join:
                             {
                                 SendJoinResult(envelope.Payload);
+                            }
+                            break;
+                        case NetworkMessageType.Ping:
+                            {
+                                Debug.Log($"<color=red>[Host Ping Raw Payload]</color> {System.Text.Encoding.UTF8.GetString(envelope.Payload)}");
+                                if (_hostSerializer.TryDeserializeT(envelope.Payload, out PingMessage pingMessage))
+                                {
+                                    Debug.Log($"<color=red>[Host Ping Raw Payload]</color> {pingMessage.Sequence} , {pingMessage.SentTime}");
+                                    SendPong(pingMessage);
+                                }
                             }
                             break;
                     }
@@ -233,7 +262,7 @@ public class Host : MonoBehaviour
         NetworkEnvelope envelope = new NetworkEnvelope(
             NetworkMessageType.Event,
             senderId: _hostNetworkId,
-            tick: message.Tick,
+            tick: _hostTickScheduler.CurrentTick + 2,
             payload: payload
         );
 
@@ -248,9 +277,43 @@ public class Host : MonoBehaviour
             Debug.Log("<color=red>[Host]</color> Event Message Send Failed");
         }
     }
+
+    private void SendPong(PingMessage pingMessage)
+    {
+        if (_hostSerializer == null || _hostTransport == null)
+            return;
+
+ 
+        PongMessage pongMessage = new PongMessage();
+        pongMessage.Sequence = pingMessage.Sequence;
+        pongMessage.SentTime = pingMessage.SentTime;
+
+        Debug.LogError($"{pingMessage.SentTime} ===> {pongMessage.SentTime}");
+
+        byte[] payload = _hostSerializer.SerializeT(pongMessage);
+
+        NetworkEnvelope envelope = new NetworkEnvelope(
+            NetworkMessageType.Pong,
+            senderId: _hostNetworkId,
+            tick: _hostTickScheduler.CurrentTick + 2,
+            payload: payload
+        );
+
+        byte[] data = _hostSerializer.Serialize(envelope);
+        _diagnostics.ReportPacketSent();
+
+        if (_hostTransport.SendTo(1, new ArraySegment<byte>(data)))
+        {
+            Debug.Log("<color=red>[Host]</color> Pong Message Send Succeeded");
+        }
+        else
+        {
+            Debug.Log("<color=red>[Host]</color> Pong Message Send Failed");
+        }
+    }
     #endregion
 
-    #region 틱 관련
+        #region 틱 관련
     private void BindTick()
     {
         if (_tickBound || _hostTickScheduler == null)
@@ -263,7 +326,7 @@ public class Host : MonoBehaviour
 
     private void HandleHostTick(TickContext context)
     {
-        // Debug.Log($"<color=red>[Host]</color> Tick={context.Tick}");
+        _diagnostics.ReportTick(context.Tick);
 
         // 1. host 입력/명령 소모
         ConsumeHostInput(context);
@@ -283,8 +346,6 @@ public class Host : MonoBehaviour
 
     private void SimulateHostWorld(TickContext context)
     {
-        Debug.Log($"<color=red>[Host]</color> SimulateHostWorld={context.Tick}");
-
         if (_hostPlayerTransform == null)
             return;
 
@@ -304,8 +365,6 @@ public class Host : MonoBehaviour
         {
             SendJumpEvent(context.Tick);
         }
-
-        Debug.Log($"<color=red>[Host]</color> SimulateHostWorld Finished={context.Tick}");
     }
 
     private void SendStateSnapshot(int tick)

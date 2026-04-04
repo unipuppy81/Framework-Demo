@@ -27,6 +27,8 @@ namespace MultiplayerFramework.Runtime.Netcode.Messages
         Leave = 7,
         JoinResult = 8,
 
+        Ping,
+        Pong,
         // µð¹ö±×
         Diagnostic
     }

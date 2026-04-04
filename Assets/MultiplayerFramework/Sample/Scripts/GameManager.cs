@@ -4,6 +4,7 @@ using MultiplayerFramework.Runtime.Core.Tick;
 using MultiplayerFramework.Runtime.Core.Transport;
 using MultiplayerFramework.Runtime.Netcode.Messages;
 using MultiplayerFramework.Runtime.NetCode.Objects;
+using MultiplayerFramework.Samples.Scripts.UI;
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -25,6 +26,12 @@ namespace MultiplayerFramework.Samples
         public Host _host;
         public Client _client;
 
+
+        [Header("Diagnostics")]
+        [SerializeField] private NetworkDiagnosticsHud _hostHud;
+        [SerializeField] private NetworkDiagnosticsHud _clientHud;
+
+
         private void Start()
         {
             HostObj = prefabManager.CreateHost();
@@ -35,6 +42,20 @@ namespace MultiplayerFramework.Samples
 
             _host.ConnectHost(this, port);
             _client.ConnectClient(address, port);
+
+            if (_hostHud != null)
+            {
+                _hostHud._host = _host;
+                _hostHud.Bind(_host.Diagnostics);
+            }
+
+
+            if (_clientHud != null)
+            {
+                _clientHud._client = _client;
+                _clientHud.Bind(_client.Diagnostics);
+            }
+
         }
 
     }

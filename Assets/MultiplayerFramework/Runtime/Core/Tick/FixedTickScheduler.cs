@@ -80,7 +80,6 @@ namespace MultiplayerFramework.Runtime.Core.Tick
 
         private void Update()
         {
-            Debug.Log($"[TickScheduler][Update] obj={gameObject.name}, id={GetInstanceID()}, isRunning={_isRunning}", this);
             if (!_isRunning)
                 return;
 

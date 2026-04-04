@@ -6,6 +6,7 @@ using MultiplayerFramework.Runtime.Netcode.Messages;
 using MultiplayerFramework.Runtime.Netcode.Messages.Event;
 using MultiplayerFramework.Runtime.NetCode.Objects;
 using MultiplayerFramework.Samples;
+using PlasticPipe.PlasticProtocol.Client;
 using System.Collections;
 using System.Collections.Generic;
 using System.Net;
@@ -30,8 +31,35 @@ public class Client : MonoBehaviour
     [SerializeField] private NetworkId _playerANetworkId;
     [SerializeField] private NetworkObject _playerANetObject;
 
-    void Update()
+
+    [Header("로그")]
+    private RuntimeDiagnosticsCollector _diagnostics;
+    public RuntimeDiagnosticsCollector Diagnostics => _diagnostics;
+
+    [Header("Ping")]
+    private float _pingInterval = 1f;
+    private float _pingTimer;
+    private int _pingSequence;
+
+
+    private void Awake()
     {
+        _diagnostics = new RuntimeDiagnosticsCollector();
+    }
+
+    void Update()
+    {   
+        _diagnostics.Update(Time.deltaTime);
+
+        _pingTimer += Time.deltaTime;
+
+        if (_pingTimer >= _pingInterval)
+        {
+            _pingTimer = 0f;
+            SendPing();
+        }
+        
+
         _transportA?.Poll();
         ConsumeEvent_PlayerA();
     }
@@ -80,7 +108,15 @@ public class Client : MonoBehaviour
 
                 NetworkEnvelope connectedEnvelope = new NetworkEnvelope(NetworkMessageType.Join, net, 0, connectedPayload);
                 byte[] connectedData = _serializerA.Serialize(connectedEnvelope);
-                _transportA.Send(new System.ArraySegment<byte>(connectedData));
+                
+                if(_transportA.Send(new System.ArraySegment<byte>(connectedData)))
+                {
+                    Debug.Log($"<color=cyan>[Player A]</color> Send Join");
+                }
+                else
+                {
+                    Debug.Log($"<color=cyan>[Player A]</color> Send Join Failed");
+                }
                 break;
 
             case NetworkTransportEventType.DataReceived:
@@ -126,7 +162,7 @@ public class Client : MonoBehaviour
                             if (_serializerA.TryDeserializeT(dataReceivedEnvelope.Payload, out PlayerStateMessage spawnMessage))
                             {
                                 PlayerStateSnapshot temp = spawnMessage.Snapshot;
-                                Debug.LogWarning($"<color=cyan>[Player A]</color> Receive Snapshot {temp.NetworkId}, {temp.Hp}, {temp.Rotation}, {temp.Position}");
+                                Debug.Log($"<color=cyan>[Player A]</color> Receive Snapshot {temp.NetworkId}, {temp.Hp}, {temp.Rotation}, {temp.Position}");
                             }
                         }
                         break;
@@ -145,11 +181,49 @@ public class Client : MonoBehaviour
                             }
                         }
                         break;
+                    case NetworkMessageType.Pong:
+                        {
+                            _diagnostics.ReportPacketReceived();
 
+                            if (_serializerA.TryDeserializeT(dataReceivedEnvelope.Payload, out PongMessage pongMessage))
+                            {
+                                Debug.LogError($"<color=cyan>[Player A]</color> 가 {dataReceivedEnvelope.SenderId} 로부터 pong 받음");
+
+                                float rttMs = (Time.realtimeSinceStartup - pongMessage.SentTime) * 1000;
+                                Debug.LogError($"<color=cyan>[Playr A]</color> {Time.realtimeSinceStartup} - {pongMessage.SentTime} = {rttMs}");
+
+                                _diagnostics.ReportRtt(rttMs);
+                            }
+                        }
+                        break;
+                    default:
+                        break;
                 }
                 break;
 
         }
     }
 
+    private void SendPing()
+    {
+        if (_serializerA == null || _transportA == null)
+            return;
+
+        PingMessage pingMessage = new PingMessage();
+        pingMessage.Sequence = _pingSequence++;
+        pingMessage.SentTime = Time.realtimeSinceStartup;
+
+        byte[] message = _serializerA.SerializeT(pingMessage);
+
+        NetworkEnvelope connectedEnvelope = new NetworkEnvelope(NetworkMessageType.Ping, _playerANetworkId, -99, message);
+        byte[] connectedData = _serializerA.Serialize(connectedEnvelope);
+
+        Debug.Log($"<color=cyan>[Client]</color>[Ping Send] sentTime={pingMessage.SentTime}");
+
+        _transportA.Send(new System.ArraySegment<byte>(connectedData));
+
+        _diagnostics.ReportPacketSent();
+
+        Debug.Log($"<color=cyan>[Player A]</color> 가 ping 전송");
+    }
 }

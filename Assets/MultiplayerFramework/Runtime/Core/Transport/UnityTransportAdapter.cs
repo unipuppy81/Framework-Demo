@@ -237,7 +237,7 @@ namespace MultiplayerFramework.Runtime.Core.Transport
                 _serverConnections.Add(connectionId, acceptedConnection);
 
                 _eventQueue.Enqueue(NetworkTransportEvent.CreateConnected(connectionId.ToString()));
-                EnqueueDiagnostic($"[Transport] Server accepted client. ConnectionId={connectionId}");
+                //EnqueueDiagnostic($"[Transport] Server accepted client. ConnectionId={connectionId}");
             }
         }
 
