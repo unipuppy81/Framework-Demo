@@ -40,7 +40,7 @@ namespace MultiplayerFramework.Samples
             _host = HostObj.GetComponent<Host>();
             _client = ClientObj.GetComponent<Client>();
 
-            _host.ConnectHost(this, port);
+            _host.ConnectHost(this, address, port);
             _client.ConnectClient(address, port);
 
             if (_hostHud != null)

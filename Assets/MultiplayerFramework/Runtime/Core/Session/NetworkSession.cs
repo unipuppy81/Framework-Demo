@@ -1,7 +1,11 @@
-using System;
+using Codice.Client.Common.GameUI;
 using MultiplayerFramework.Runtime.Core.Serialization;
 using MultiplayerFramework.Runtime.Core.Transport;
 using MultiplayerFramework.Runtime.Netcode.Messages;
+using MultiplayerFramework.Runtime.NetCode.Objects;
+using System;
+using System.Diagnostics;
+using Unity.VisualScripting.YamlDotNet.Serialization;
 
 namespace MultiplayerFramework.Runtime.Core.Session
 {
@@ -35,8 +39,14 @@ namespace MultiplayerFramework.Runtime.Core.Session
 
             // Transport 이벤트를 Session 내부에서 받아서
             // 상위 계층에 맞는 이벤트로 다시 변환
-            _transport.OnTransportEvent += HandleTransportEvent;
+            // _transport.OnTransportEvent += HandleTransportEvent;
         }
+
+        public bool ConnectNetwork(string address, ushort port, bool isHost)
+        {
+            return _transport.ConnectNetwork(address, port, isHost);
+        }
+
 
         public void Connect(string endpoint)
         {
@@ -48,16 +58,21 @@ namespace MultiplayerFramework.Runtime.Core.Session
             _transport.Disconnect();
         }
 
-        public void Send(NetworkEnvelope message, string targetEndpoint)
+        public bool Send(NetworkEnvelope message)
         {
             // 메시지 객체를 직렬화
             byte[] serializedData = _serializer.Serialize(message);
-            _transport.Send(serializedData, targetEndpoint);
+            return _transport.Send(serializedData);
         }
 
         public void Poll()
         {
-            _transport.Poll();
+            _transport?.Poll();
+
+            while (_transport.TryDequeueEvent(out NetworkTransportEvent transportEvent))
+            {
+                HandleTransportEvent(transportEvent);
+            }
         }
 
         private void HandleTransportEvent(NetworkTransportEvent transportEvent)

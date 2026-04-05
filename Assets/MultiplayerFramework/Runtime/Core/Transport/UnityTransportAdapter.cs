@@ -1,8 +1,10 @@
 using PlasticGui;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using Unity.Collections;
 using Unity.Networking.Transport;
+using UnityEditor.MemoryProfiler;
 
 
 namespace MultiplayerFramework.Runtime.Core.Transport
@@ -42,6 +44,14 @@ namespace MultiplayerFramework.Runtime.Core.Transport
 
         public bool IsConnected => throw new NotImplementedException();
 
+
+        public bool ConnectNetwork(string address, ushort port, bool isHost)
+        {
+            if (isHost)
+                return StartHost(port);
+            else
+                return StartClient(address, port);
+        }
 
         /// <summary>
         /// 클라이언트 모드로 서버에 연결
@@ -264,6 +274,7 @@ namespace MultiplayerFramework.Runtime.Core.Transport
                             {
                                 byte[] data = ReadBytes(stream);
                                 _eventQueue.Enqueue(NetworkTransportEvent.CreateDataReceived(connectionId.ToString(), data));
+                                //OnTransportEvent?.Invoke(NetworkTransportEvent.CreateDataReceived(connectionId.ToString(), data));
                                 break;
                             }
 
@@ -277,7 +288,7 @@ namespace MultiplayerFramework.Runtime.Core.Transport
 
                         case NetworkEvent.Type.Connect:
                             {
-                                UnityEngine.Debug.Log("[Host] Connect");
+                                UnityEngine.Debug.LogError("[Host] Connect");
                                 break;
                             }
                     }
@@ -381,7 +392,7 @@ namespace MultiplayerFramework.Runtime.Core.Transport
             throw new NotImplementedException();
         }
 
-        public void Send(byte[] data, string targetEndpoint = null)
+        public bool Send_string(byte[] data, string targetEndpoint = null)
         {
             throw new NotImplementedException();
         }

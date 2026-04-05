@@ -71,6 +71,31 @@ namespace MultiplayerFramework.Sample
         {
             OnTransportEvent?.Invoke(new NetworkTransportEvent(NetworkTransportEventType.Error, errorMessage: message));
         }
+
+        public bool ConnectNetwork(string address, ushort port, bool isHost)
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool SendTo(int connectionId, ArraySegment<byte> payload)
+        {
+            throw new NotImplementedException();
+        }
+
+        bool INetworkTransport.Send_string(byte[] data, string targetEndpoint)
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool TryDequeueEvent(out NetworkTransportEvent transportEvent)
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool Send(ArraySegment<byte> payload)
+        {
+            throw new NotImplementedException();
+        }
     }
 }
 

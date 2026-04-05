@@ -70,5 +70,15 @@ namespace MultiplayerFramework.Sample
                 return false;
             }
         }
+
+        public byte[] SerializeT<T>(T message)
+        {
+            throw new System.NotImplementedException();
+        }
+
+        public bool TryDeserializeT<T>(byte[] data, out T message)
+        {
+            throw new System.NotImplementedException();
+        }
     }
 }

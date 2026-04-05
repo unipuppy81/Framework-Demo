@@ -58,17 +58,6 @@ namespace MultiplayerFramework.Sample.Networking
             {
                 HandleTransportEvent(transportEvent);
             }
-
-
-            if (Input.GetKeyDown(KeyCode.F1))
-            {
-                StartTransport();
-            }
-
-            if (Input.GetKeyDown(KeyCode.F2))
-            {
-                StopTransport();
-            }
         }
 
         public void StartTransport()

@@ -53,7 +53,7 @@ namespace MultiplayerFramework.Runtime.Core.Transport
         /// targetEndpoint를 지정하면 특정 대상
         /// 구현에 따라 null 또는 빈 값은 기본 대상/브로드캐스트로 처리
         /// </summary>
-        void Send(byte[] data, string targetEndpoint = null);
+        bool Send_string(byte[] data, string targetEndpoint = null);
 
         /// <summary>
         /// Transport 내부 큐를 갱신
@@ -61,6 +61,13 @@ namespace MultiplayerFramework.Runtime.Core.Transport
         /// 실제 소켓 구현에서는 비워 두거나 내부 처리만 수행
         /// </summary>
         void Poll();
+
+
+
+        bool ConnectNetwork(string address, ushort port, bool isHost);
+        bool Send(ArraySegment<byte> payload);
+        bool SendTo(int connectionId, ArraySegment<byte> payload);
+        bool TryDequeueEvent(out NetworkTransportEvent transportEvent);
     }
 
 }

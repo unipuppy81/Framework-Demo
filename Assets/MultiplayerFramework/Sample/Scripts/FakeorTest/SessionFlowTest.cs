@@ -67,7 +67,7 @@ namespace MultiplayerFramework.Sample
                 payload: Encoding.UTF8.GetBytes("Hello From Game"));
 
             // 게임 -> Session -> Serializer -> Transport 흐름 테스트
-            _session.Send(outgoingMessage, "clinet-b");
+            // _session.Send(outgoingMessage, "clinet-b");
 
             if (_transport.LastSentData == null || _transport.LastSentData.Length == 0)
             {

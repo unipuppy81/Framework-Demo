@@ -66,9 +66,10 @@ public class Host : MonoBehaviour
         _diagnostics.Update(Time.deltaTime);
 
         CollectHostInput();
+        _hostSession?.Poll();
 
-        _hostTransport?.Poll();
-        ConsumeEvent_Host();
+        //_hostTransport?.Poll();
+        //ConsumeEvent_Host();
 
     }
 
@@ -83,7 +84,7 @@ public class Host : MonoBehaviour
         }
     }
 
-    public void ConnectHost(GameManager gm, ushort port)
+    public void ConnectHost(GameManager gm, string address, ushort port)
     {
         _hostTransport = new UnityTransportAdapter();
         _hostSerializer = new JsonMessageSerializer();
@@ -94,7 +95,11 @@ public class Host : MonoBehaviour
         PrefabMgr = new PrefabManager();
         GameMgr = gm;
 
-        bool result = _hostTransport.StartHost(port);
+        //bool result = _hostTransport.StartHost(port);
+        bool result = _hostSession.ConnectNetwork(address, port, true);
+
+        _hostSession.OnMessageReceived += ReceivedNetworkEnvelope;
+
 
         _hostLogger.Log(result
             ? $"<color=red>[Host]</color> Host started on port {port}"
@@ -126,6 +131,30 @@ public class Host : MonoBehaviour
         }
     }
 
+    private void ReceivedNetworkEnvelope(NetworkEnvelope envelope)
+    {
+        _diagnostics.ReportPacketReceived();
+
+        switch (envelope.Type)
+        {
+            case NetworkMessageType.Join:
+                {
+                    SendJoinResult(envelope.Payload);
+                }
+                break;
+            case NetworkMessageType.Ping:
+                {
+                    _hostLogger.Log($"<color=red>[Host Ping Raw Payload]</color> {System.Text.Encoding.UTF8.GetString(envelope.Payload)}");
+                    if (_hostSerializer.TryDeserializeT(envelope.Payload, out PingMessage pingMessage))
+                    {
+                        _hostLogger.Log($"<color=red>[Host Ping Raw Payload]</color> {pingMessage.Sequence} , {pingMessage.SentTime}");
+                        SendPong(pingMessage);
+                    }
+                }
+                break;
+        }
+    }
+
     private void HandleEvent_Host(NetworkTransportEvent transportEvent)
     {
         switch (transportEvent.Type)
@@ -139,7 +168,7 @@ public class Host : MonoBehaviour
 
                     _diagnostics.ReportPacketReceived();
 
-                    Debug.Log($"<color=red>[Host]</color> {transportEvent.Type.ToString()} - {envelope.Type.ToString()}");
+                    _hostLogger.Log($"<color=red>[Host]</color> {transportEvent.Type.ToString()} - {envelope.Type.ToString()}");
 
                     switch (envelope.Type)
                     {
@@ -150,10 +179,10 @@ public class Host : MonoBehaviour
                             break;
                         case NetworkMessageType.Ping:
                             {
-                                Debug.Log($"<color=red>[Host Ping Raw Payload]</color> {System.Text.Encoding.UTF8.GetString(envelope.Payload)}");
+                                _hostLogger.Log($"<color=red>[Host Ping Raw Payload]</color> {System.Text.Encoding.UTF8.GetString(envelope.Payload)}");
                                 if (_hostSerializer.TryDeserializeT(envelope.Payload, out PingMessage pingMessage))
                                 {
-                                    Debug.Log($"<color=red>[Host Ping Raw Payload]</color> {pingMessage.Sequence} , {pingMessage.SentTime}");
+                                    _hostLogger.Log($"<color=red>[Host Ping Raw Payload]</color> {pingMessage.Sequence} , {pingMessage.SentTime}");
                                     SendPong(pingMessage);
                                 }
                             }
@@ -172,7 +201,7 @@ public class Host : MonoBehaviour
 
         if (_hostSerializer.TryDeserializeT(_payload, out JoinMessage joinMessage))
         {
-            Debug.Log($"<color=red>[Host]</color> Join 요청 수신: {joinMessage.PlayerName}");
+            _hostLogger.Log($"<color=red>[Host]</color> Join 요청 수신: {joinMessage.PlayerName}");
 
             //NetworkId newClient = GenerateClientId();
             NetworkId newClient = _networkIdGenerator.Create();
@@ -203,14 +232,14 @@ public class Host : MonoBehaviour
             byte[] resultData = _hostSerializer.Serialize(resultEnvelope);
             if (_hostTransport.SendTo(1, new ArraySegment<byte>(resultData)))
             {
-                Debug.Log("<color=red>[Host]</color> Join 승인 응답 전송");
+                _hostLogger.Log("<color=red>[Host]</color> Join 승인 응답 전송");
 
                 if (resultMessage.Success)
                     SendSpawn(newClient);
             }
             else
             {
-                Debug.Log("<color=red>[Host]</color> Join 승인 응답 전송 실패");
+                _hostLogger.Log("<color=red>[Host]</color> Join 승인 응답 전송 실패");
             }
         }
     }
@@ -235,16 +264,16 @@ public class Host : MonoBehaviour
                     payload
                 );
 
-        Debug.Log("<color=red>[Host]</color> SpawnMessage 완성");
+        _hostLogger.Log("<color=red>[Host]</color> SpawnMessage 완성");
 
         byte[] resultData = _hostSerializer.Serialize(resultEnvelope);
         if (_hostTransport.SendTo(1, new ArraySegment<byte>(resultData)))
         {
-            Debug.Log("<color=red>[Host]</color> SpawnMessage 전송 성공");
+            _hostLogger.Log("<color=red>[Host]</color> SpawnMessage 전송 성공");
         }
         else
         {
-            Debug.Log("<color=red>[Host]</color> SpawnMessage 전송 실패");
+            _hostLogger.Log("<color=red>[Host]</color> SpawnMessage 전송 실패");
         }
     }
 
@@ -270,11 +299,11 @@ public class Host : MonoBehaviour
 
         if (_hostTransport.SendTo(1, new ArraySegment<byte>(data)))
         {
-            Debug.Log("<color=red>[Host]</color> Event Message Send Succeeded");
+            _hostLogger.Log("<color=red>[Host]</color> Event Message Send Succeeded");
         }
         else
         {
-            Debug.Log("<color=red>[Host]</color> Event Message Send Failed");
+            _hostLogger.Log("<color=red>[Host]</color> Event Message Send Failed");
         }
     }
 
@@ -304,11 +333,11 @@ public class Host : MonoBehaviour
 
         if (_hostTransport.SendTo(1, new ArraySegment<byte>(data)))
         {
-            Debug.Log("<color=red>[Host]</color> Pong Message Send Succeeded");
+            _hostLogger.Log("<color=red>[Host]</color> Pong Message Send Succeeded");
         }
         else
         {
-            Debug.Log("<color=red>[Host]</color> Pong Message Send Failed");
+            _hostLogger.Log("<color=red>[Host]</color> Pong Message Send Failed");
         }
     }
     #endregion
@@ -340,7 +369,7 @@ public class Host : MonoBehaviour
 
     private void ConsumeHostInput(TickContext context)
     {
-        Debug.Log($"<color=red>[Host]</color> ConsumeHostInput={context.Tick}");
+        _hostLogger.Log($"<color=red>[Host]</color> ConsumeHostInput={context.Tick}");
         _lastConsumedCommand = _hostInputBuffer.GetOrDefault(context.Tick);
     }
 
@@ -369,7 +398,7 @@ public class Host : MonoBehaviour
 
     private void SendStateSnapshot(int tick)
     {
-        Debug.Log($"<color=red>[Host]</color> SendStateSnapshot");
+        _hostLogger.Log($"<color=red>[Host]</color> SendStateSnapshot");
         // client 로 state 전송
         if (_hostPlayerTransform == null)
             return;
@@ -400,11 +429,11 @@ public class Host : MonoBehaviour
         byte[] resultData = _hostSerializer.Serialize(resultEnvelope);
         if (_hostTransport.SendTo(1, new ArraySegment<byte>(resultData)))
         {
-            Debug.Log("<color=red>[Host]</color> Input-State Message Send Successed");
+            _hostLogger.Log("<color=red>[Host]</color> Input-State Message Send Successed");
         }
         else
         {
-            Debug.Log("<color=red>[Host]</color> Input-State Message Send Failed");
+            _hostLogger .Log("<color=red>[Host]</color> Input-State Message Send Failed");
         }
     }
     #endregion

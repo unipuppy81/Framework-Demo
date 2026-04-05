@@ -22,6 +22,10 @@ namespace MultiplayerFramework.Runtime.Core.Serialization
         /// 수신한 byte 배열을 NetworkEnvelope로 복원합니다.
         /// </summary>
         bool TryDeserialize(byte[] data, out NetworkEnvelope message);
+
+
+        byte[] SerializeT<T>(T message);
+        bool TryDeserializeT<T>(byte[] data, out T message);
     }
 
 }
