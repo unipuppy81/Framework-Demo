@@ -43,6 +43,7 @@ namespace MultiplayerFramework.Runtime.Sample.Player
 
         public PlayerTickResult Tick(PlayerInputCommand command, float deltaTime)
         {
+            Debug.LogError("A");
             PlayerTickResult result = default;
 
             UpdateTimers(deltaTime);

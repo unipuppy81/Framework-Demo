@@ -65,6 +65,8 @@ namespace MultiplayerFramework.Runtime.Sample.Player
 
         private void Update()
         {
+            Debug.LogError("A");
+
             _latestFrameInput = CollectFrameInput();
 
             if (scheduler == null)
@@ -98,6 +100,8 @@ namespace MultiplayerFramework.Runtime.Sample.Player
 
         private static PlayerInputFrame CollectFrameInput()
         {
+            Debug.LogError("A");
+
             Vector2 move = new Vector2(
                 Input.GetAxisRaw("Horizontal"),
                 Input.GetAxisRaw("Vertical"));

@@ -42,10 +42,7 @@ namespace MultiplayerFramework.Runtime.Core.Tick
             _currentTick = startTick;
             _elapsedTime = _currentTick * _tickInterval;
 
-            Debug.Log($"[TickScheduler][StartTick]   isRunning={_isRunning}");
             _isRunning = true;
-            Debug.Log($"[TickScheduler][StartTick]   isRunning={_isRunning}");
-
         }
 
         public void StopTick()

@@ -12,6 +12,8 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEditor.VersionControl;
 using UnityEngine;
+using UnityEngine.UIElements;
+using static UnityEngine.GraphicsBuffer;
 
 public class Host : MonoBehaviour
 {
@@ -114,23 +116,6 @@ public class Host : MonoBehaviour
             _isStarted = false;
     }
 
-    private void ConsumeEvent_Host()
-    {
-        if (_hostTransport == null)
-            return;
-
-        while (_hostTransport.TryDequeueEvent(out NetworkTransportEvent transportEvent))
-        {
-            if (transportEvent.Type == NetworkTransportEventType.Diagnostic)
-            {
-                _diagnostics.ReportMessage(transportEvent.ErrorMessage);
-            }
-
-
-            HandleEvent_Host(transportEvent);
-        }
-    }
-
     private void ReceivedNetworkEnvelope(NetworkEnvelope envelope)
     {
         _diagnostics.ReportPacketReceived();
@@ -144,49 +129,19 @@ public class Host : MonoBehaviour
                 break;
             case NetworkMessageType.Ping:
                 {
-                    _hostLogger.Log($"<color=red>[Host Ping Raw Payload]</color> {System.Text.Encoding.UTF8.GetString(envelope.Payload)}");
+                    _hostLogger.Log($"<color=red>[Host </color> Ping Raw Payload] {System.Text.Encoding.UTF8.GetString(envelope.Payload)}");
                     if (_hostSerializer.TryDeserializeT(envelope.Payload, out PingMessage pingMessage))
                     {
-                        _hostLogger.Log($"<color=red>[Host Ping Raw Payload]</color> {pingMessage.Sequence} , {pingMessage.SentTime}");
                         SendPong(pingMessage);
                     }
                 }
                 break;
-        }
-    }
-
-    private void HandleEvent_Host(NetworkTransportEvent transportEvent)
-    {
-        switch (transportEvent.Type)
-        {
-            case NetworkTransportEventType.DataReceived:
+            case NetworkMessageType.State:
                 {
-                    byte[] data = transportEvent.Payload;
-
-                    if (!_hostSerializer.TryDeserialize(data, out NetworkEnvelope envelope))
-                        return;
-
-                    _diagnostics.ReportPacketReceived();
-
-                    _hostLogger.Log($"<color=red>[Host]</color> {transportEvent.Type.ToString()} - {envelope.Type.ToString()}");
-
-                    switch (envelope.Type)
+                    if (_hostSerializer.TryDeserializeT(envelope.Payload, out PlayerStateMessage stateMessage))
                     {
-                        case NetworkMessageType.Join:
-                            {
-                                SendJoinResult(envelope.Payload);
-                            }
-                            break;
-                        case NetworkMessageType.Ping:
-                            {
-                                _hostLogger.Log($"<color=red>[Host Ping Raw Payload]</color> {System.Text.Encoding.UTF8.GetString(envelope.Payload)}");
-                                if (_hostSerializer.TryDeserializeT(envelope.Payload, out PingMessage pingMessage))
-                                {
-                                    _hostLogger.Log($"<color=red>[Host Ping Raw Payload]</color> {pingMessage.Sequence} , {pingMessage.SentTime}");
-                                    SendPong(pingMessage);
-                                }
-                            }
-                            break;
+                        PlayerStateSnapshot temp = stateMessage.Snapshot;
+                        _hostLogger.Log($"<color=red>[Host]</color> Receive Snapshot {temp.NetworkId}, {temp.Hp}, {temp.Position}");
                     }
                 }
                 break;
@@ -264,8 +219,6 @@ public class Host : MonoBehaviour
                     payload
                 );
 
-        _hostLogger.Log("<color=red>[Host]</color> SpawnMessage 肯己");
-
         byte[] resultData = _hostSerializer.Serialize(resultEnvelope);
         if (_hostTransport.SendTo(1, new ArraySegment<byte>(resultData)))
         {
@@ -342,7 +295,7 @@ public class Host : MonoBehaviour
     }
     #endregion
 
-        #region 平 包访
+    #region 平 包访
     private void BindTick()
     {
         if (_tickBound || _hostTickScheduler == null)
@@ -369,7 +322,6 @@ public class Host : MonoBehaviour
 
     private void ConsumeHostInput(TickContext context)
     {
-        _hostLogger.Log($"<color=red>[Host]</color> ConsumeHostInput={context.Tick}");
         _lastConsumedCommand = _hostInputBuffer.GetOrDefault(context.Tick);
     }
 
@@ -398,7 +350,6 @@ public class Host : MonoBehaviour
 
     private void SendStateSnapshot(int tick)
     {
-        _hostLogger.Log($"<color=red>[Host]</color> SendStateSnapshot");
         // client 肺 state 傈价
         if (_hostPlayerTransform == null)
             return;
@@ -429,11 +380,11 @@ public class Host : MonoBehaviour
         byte[] resultData = _hostSerializer.Serialize(resultEnvelope);
         if (_hostTransport.SendTo(1, new ArraySegment<byte>(resultData)))
         {
-            _hostLogger.Log("<color=red>[Host]</color> Input-State Message Send Successed");
+            _hostLogger.Log("<color=red>[Host]</color> Input-State Snapshot Message Send Successed");
         }
         else
         {
-            _hostLogger .Log("<color=red>[Host]</color> Input-State Message Send Failed");
+            _hostLogger .Log("<color=red>[Host]</color> Input-State Snapshot Message Send Failed");
         }
     }
     #endregion
@@ -452,6 +403,11 @@ public class Host : MonoBehaviour
         bool attackPressed = Input.GetMouseButtonDown(0);
         bool jumpPressed = Input.GetKeyDown(KeyCode.Space);
 
+        if(jumpPressed)
+        {
+            TryAttack();
+        }
+
         int targetTick = _hostTickScheduler.CurrentTick + 1;
 
         PlayerInputCommand command = new PlayerInputCommand(
@@ -462,6 +418,27 @@ public class Host : MonoBehaviour
         );
 
         _hostInputBuffer.Store(command);
+    }
+
+    private void TryAttack()
+    {
+        List<NetworkId> targets = FindTargetsInRange();
+
+        if (targets.Count == 0)
+            return;
+
+        NetworkId targetId = targets[0];
+        ApplyDamage(targetId);
+    }
+
+    private List<NetworkId> FindTargetsInRange()
+    {
+        return new List<NetworkId>();
+    }
+
+    private void ApplyDamage(NetworkId targetId)
+    {
+
     }
     #endregion
 }

@@ -241,13 +241,10 @@ namespace MultiplayerFramework.Runtime.Core.Transport
             NetworkConnection acceptedConnection;
             while ((acceptedConnection = _driver.Accept()) != default)
             {
-                UnityEngine.Debug.Log("<color=red>[Host]</color> PollServer");
-
                 int connectionId = _nextConnectionId++;
                 _serverConnections.Add(connectionId, acceptedConnection);
 
                 _eventQueue.Enqueue(NetworkTransportEvent.CreateConnected(connectionId.ToString()));
-                //EnqueueDiagnostic($"[Transport] Server accepted client. ConnectionId={connectionId}");
             }
         }
 

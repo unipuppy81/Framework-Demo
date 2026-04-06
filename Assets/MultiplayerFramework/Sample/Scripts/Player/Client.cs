@@ -2,11 +2,13 @@ using MultiplayerFramework.Runtime.Core.Diagnostics;
 using MultiplayerFramework.Runtime.Core.Session;
 using MultiplayerFramework.Runtime.Core.Tick;
 using MultiplayerFramework.Runtime.Core.Transport;
+using MultiplayerFramework.Runtime.Gameplay.Input;
 using MultiplayerFramework.Runtime.Netcode.Messages;
 using MultiplayerFramework.Runtime.Netcode.Messages.Event;
 using MultiplayerFramework.Runtime.NetCode.Objects;
 using MultiplayerFramework.Samples;
 using PlasticPipe.PlasticProtocol.Client;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Net;
@@ -31,6 +33,14 @@ public class Client : MonoBehaviour
     [SerializeField] private NetworkId _playerANetworkId;
     [SerializeField] private NetworkObject _playerANetObject;
 
+    [Header("Input")]
+    private readonly InputBuffer _playerAInputBuffer = new();
+    private PlayerInputCommand _lastConsumedCommandA;
+    [SerializeField] private Transform _playerATransform;
+    [SerializeField] private int _playerAHp = 100;
+    [SerializeField] private float _playerAMoveSpeed = 5f;
+    [SerializeField] private bool _isStartedA;
+    private bool _tickBound;
 
     [Header("로그")]
     private RuntimeDiagnosticsCollector _diagnostics;
@@ -44,6 +54,7 @@ public class Client : MonoBehaviour
 
     private void Awake()
     {
+        BindTick();
         _diagnostics = new RuntimeDiagnosticsCollector();
     }
 
@@ -70,7 +81,7 @@ public class Client : MonoBehaviour
         _sessionA.OnConnected += SendJoinMessage;
         _sessionA.OnMessageReceived += ReceivedNetworkEnvelope;
 
-        _loggerA.Log(result
+        _loggerA.LogError(result
                ? $"<color=cyan>[Player A]</color> Client start requested. Target={address} : {port}"
                : $"<color=cyan>[Player A]</color> Client start failed. Target={address} : {port}");
 
@@ -96,11 +107,11 @@ public class Client : MonoBehaviour
                     {
                         if (joinResult.Success)
                         {
-                            _loggerA.Log($"<color=cyan>[Player A]</color> Join 성공. PlayerID={joinResult.CallbackId}, PlayerName={joinResult.CallbackName}");
+                            _loggerA.LogError($"<color=cyan>[Player A]</color> Join 성공. PlayerID={joinResult.CallbackId.Value}, PlayerName={joinResult.CallbackName}");
                         }
                         else
                         {
-                            Debug.LogError($"<color=cyan>[Player A]</color> Join 실패: {joinResult.ErrorReason}");
+                            _loggerA.LogError($"<color=cyan>[Player A]</color> Join 실패: {joinResult.ErrorReason}");
                         }
                     }
                 }
@@ -120,10 +131,10 @@ public class Client : MonoBehaviour
                 break;
             case NetworkMessageType.State:
                 {
-                    if (_serializerA.TryDeserializeT(dataReceivedEnvelope.Payload, out PlayerStateMessage spawnMessage))
+                    if (_serializerA.TryDeserializeT(dataReceivedEnvelope.Payload, out PlayerStateMessage stateMessage))
                     {
-                        PlayerStateSnapshot temp = spawnMessage.Snapshot;
-                        _loggerA.Log($"<color=cyan>[Player A]</color> Receive Snapshot {temp.NetworkId}, {temp.Hp}, {temp.Rotation}, {temp.Position}");
+                        PlayerStateSnapshot temp = stateMessage.Snapshot;
+                        _loggerA.LogError($"<color=cyan>[Player A]</color> Receive Snapshot {temp.NetworkId}, {temp.Hp}, {temp.Position}");
                     }
                 }
                 break;
@@ -135,7 +146,7 @@ public class Client : MonoBehaviour
                         {
                             case GameplayEventType.Jump:
                                 {
-                                    Debug.LogWarning($"<color=cyan>[Player A]</color> Receive Jump");
+                                    _loggerA.LogError($"<color=cyan>[Player A]</color> Receive Jump");
                                 }
                                 break;
                         }
@@ -148,11 +159,8 @@ public class Client : MonoBehaviour
 
                     if (_serializerA.TryDeserializeT(dataReceivedEnvelope.Payload, out PongMessage pongMessage))
                     {
-                        Debug.LogError($"<color=cyan>[Player A]</color> 가 {dataReceivedEnvelope.SenderId} 로부터 pong 받음");
-
                         float rttMs = (Time.realtimeSinceStartup - pongMessage.SentTime) * 1000;
-                        Debug.LogError($"<color=cyan>[Playr A]</color> {Time.realtimeSinceStartup} - {pongMessage.SentTime} = {rttMs}");
-
+                       
                         _diagnostics.ReportRtt(rttMs);
                     }
                 }
@@ -260,11 +268,11 @@ public class Client : MonoBehaviour
         NetworkEnvelope connectedEnvelope = new NetworkEnvelope(NetworkMessageType.Join, testSenderID, 0, connectedPayload);
         if(_sessionA.Send(connectedEnvelope))
         {
-            _loggerA.Log($"<color=cyan>[Player A]</color> Send Join");
+            _loggerA.LogError($"<color=cyan>[Player A]</color> Send Join to Host");
         }
         else
         {
-            _loggerA.Log($"<color=cyan>[Player A]</color> Send Join Failed");
+            _loggerA.LogError($"<color=cyan>[Player A]</color> Send Join Failed");
         }
     }
 
@@ -301,4 +309,87 @@ public class Client : MonoBehaviour
 
         
     }
+
+
+    #region 틱 관련
+    private void BindTick()
+    {
+        if (_tickBound || _playerATickScheduler == null)
+            return;
+
+        _playerATickScheduler.OnTick += HandlePlayerATick;
+        _tickBound = true;
+        _playerATransform = GetComponent<Transform>();
+    }
+    #endregion
+
+    private void HandlePlayerATick(TickContext context)
+    {
+        // 1
+        _diagnostics.ReportTick(context.Tick);
+
+        _lastConsumedCommandA = _playerAInputBuffer.GetOrDefault(context.Tick);
+
+
+        // 2 
+        if (_playerATransform == null)
+            return;
+
+        float x = 0f;
+        float z = 0f;
+
+        if (Input.GetKey(KeyCode.H)) x -= 1f;
+        if (Input.GetKey(KeyCode.K)) x += 1f;
+        if (Input.GetKey(KeyCode.U)) z += 1f;
+        if (Input.GetKey(KeyCode.J)) z -= 1f;
+
+        Vector2 move = new Vector2(x, z);
+        Vector3 moveDir = new Vector3(x, 0f, z);
+        _playerATransform.position += moveDir * 5 * context.DeltaTime;
+
+        bool jumpPressed = false;
+        bool attackPressed = Input.GetKeyDown(KeyCode.KeypadEnter);
+        int targetTick = _playerATickScheduler.CurrentTick + 1;
+
+        PlayerInputCommand command = new PlayerInputCommand(
+            targetTick,
+            move,
+            jumpPressed,
+            attackPressed
+            );
+
+        _playerAInputBuffer.Store(command);
+
+        PlayerStateSnapshot snapshot = new PlayerStateSnapshot(
+           context.Tick,
+           1,
+           _playerATransform.position,
+           _playerATransform.rotation,
+           _playerAHp
+       );
+
+        PlayerStateMessage message = new PlayerStateMessage(snapshot);
+
+        byte[] payload = _serializerA.SerializeT(message);
+
+        NetworkEnvelope resultEnvelope =
+                new NetworkEnvelope(
+                    NetworkMessageType.State,
+                    senderId: _playerANetworkId,
+                    tick: _playerATickScheduler.CurrentTick + 2,
+                    payload
+                );
+
+
+        byte[] resultData = _serializerA.Serialize(resultEnvelope);
+        if (_transportA.Send(new ArraySegment<byte>(resultData)))
+        {
+            _loggerA.LogError("<color=cyan>[Player A]</color> Input-State Message Send Successed");
+        }
+        else
+        {
+            _loggerA.LogError("<color=cyan>[Player A]</color> Input-State Message Send Failed");
+        }
+    }
+
 }

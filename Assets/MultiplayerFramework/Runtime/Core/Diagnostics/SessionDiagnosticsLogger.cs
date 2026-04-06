@@ -22,6 +22,17 @@ namespace MultiplayerFramework.Runtime.Core.Diagnostics
             Debug.Log(message);
         }
 
+        public void LogWarning(string message)
+        {
+            _logs.Add(message);
+            Debug.LogWarning(message);
+        }
+
+        public void LogError(string message)
+        {
+            _logs.Add(message);
+            Debug.LogError(message);
+        }
         public void Clear()
         {
             _logs.Clear();
