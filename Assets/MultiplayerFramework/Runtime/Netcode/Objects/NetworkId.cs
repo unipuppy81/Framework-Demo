@@ -7,9 +7,9 @@ namespace MultiplayerFramework.Runtime.NetCode.Objects
     /// 각 네트워크 오브젝트를 식별하는 고유 값
     /// </summary>
     [Serializable]
-    public readonly struct NetworkId : IEquatable<NetworkId>
+    public struct NetworkId : IEquatable<NetworkId>
     {
-        public readonly int Value;
+        public int Value;
 
         public NetworkId(int value)
         {
@@ -22,7 +22,7 @@ namespace MultiplayerFramework.Runtime.NetCode.Objects
         public override int GetHashCode() => Value;
         public override string ToString() => $"NetId({Value})";
 
-        public static readonly NetworkId Invalid = new NetworkId(0);
+        public static NetworkId Invalid = new NetworkId(0);
 
         public static bool operator ==(NetworkId left, NetworkId right) => left.Equals(right);
         public static bool operator !=(NetworkId left, NetworkId right) => !left.Equals(right);

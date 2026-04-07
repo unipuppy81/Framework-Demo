@@ -4,6 +4,7 @@ using MultiplayerFramework.Runtime.Core.Transport;
 using MultiplayerFramework.Runtime.Netcode.Messages;
 using MultiplayerFramework.Runtime.NetCode.Objects;
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using Unity.VisualScripting.YamlDotNet.Serialization;
 
@@ -27,7 +28,7 @@ namespace MultiplayerFramework.Runtime.Core.Session
 
         public bool IsConnected => _transport.IsConnected;
 
-        public event Action<NetworkEnvelope> OnMessageReceived;
+        public event Action<int, NetworkEnvelope> OnMessageReceived;
         public event Action OnConnected;
         public event Action OnDisconnected;
         public event Action<string> OnError;
@@ -88,7 +89,7 @@ namespace MultiplayerFramework.Runtime.Core.Session
                     break;
 
                 case NetworkTransportEventType.DataReceived:
-                    HandleReceivedData(transportEvent.Payload);
+                    HandleReceivedData(transportEvent);
                     break;
 
                 case NetworkTransportEventType.Error:
@@ -97,17 +98,25 @@ namespace MultiplayerFramework.Runtime.Core.Session
             }
         }
 
-        private void HandleReceivedData(byte[] data)
+        private void HandleReceivedData(NetworkTransportEvent msg)
         {
+            if(!int.TryParse(msg.RemoteEndpoint, out int connectionId))
+            {
+                OnError?.Invoke("Invalid connection id.");
+                return;
+            }
+
+            byte[] data = msg.Payload;
+
             // 수신한 byte[]를 메시지로 복원 시도
-            if (_serializer.TryDeserialize(data, out NetworkEnvelope message) == false)
+            if (!_serializer.TryDeserialize(data, out NetworkEnvelope message))
             {
                 OnError?.Invoke("Failed to deserialize incoming network message.");
                 return;
             }
 
             // 상위 계층에는 다시 메시지 객체 형태로 전달
-            OnMessageReceived?.Invoke(message);
+            OnMessageReceived?.Invoke(connectionId, message);
         }
     }
 }

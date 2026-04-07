@@ -115,6 +115,7 @@ GameObject:
   m_Component:
   - component: {fileID: 5868032371088819551}
   - component: {fileID: 8227403615164140347}
+  - component: {fileID: 2802892595836418106}
   - component: {fileID: 5758740537083475092}
   - component: {fileID: -6187690499585932216}
   - component: {fileID: 4904979289479513576}
@@ -171,6 +172,27 @@ Rigidbody:
   m_Interpolate: 0
   m_Constraints: 0
   m_CollisionDetection: 0
+--- !u!65 &2802892595836418106
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8412288893176905350}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 1
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 1, y: 1, z: 1}
+  m_Center: {x: 0, y: 0, z: 0}
 --- !u!114 &5758740537083475092
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -200,6 +222,10 @@ MonoBehaviour:
   _playerATickScheduler: {fileID: 4904979289479513576}
   _playerA_Name: PlayerA
   _playerANetObject: {fileID: 5758740537083475092}
+  _playerATransform: {fileID: 0}
+  _playerAHp: 100
+  _playerAMoveSpeed: 5
+  _isStartedA: 0
 --- !u!114 &4904979289479513576
 MonoBehaviour:
   m_ObjectHideFlags: 0

@@ -6,6 +6,7 @@ using MultiplayerFramework.Runtime.Gameplay.Input;
 using MultiplayerFramework.Runtime.Netcode.Messages;
 using MultiplayerFramework.Runtime.Netcode.Messages.Event;
 using MultiplayerFramework.Runtime.NetCode.Objects;
+using MultiplayerFramework.Runtime.Sample.Player;
 using MultiplayerFramework.Samples;
 using System;
 using System.Collections;
@@ -13,7 +14,6 @@ using System.Collections.Generic;
 using UnityEditor.VersionControl;
 using UnityEngine;
 using UnityEngine.UIElements;
-using static UnityEngine.GraphicsBuffer;
 
 public class Host : MonoBehaviour
 {
@@ -46,12 +46,17 @@ public class Host : MonoBehaviour
     [SerializeField] private GameObject _hostGameObject;
     [SerializeField] private NetworkIdGenerator _networkIdGenerator;
     [SerializeField] private NetworkObjectRegistry _networkObjectRegistry;
+    [SerializeField] private NetworkConnectionGenerator _networkConnectionGenerator;
 
     [SerializeField] private string _host_Name = "NAMEHOST";
 
     [SerializeField] private NetworkId _hostNetworkId;
     [SerializeField] private NetworkObject _hostNetObject;
 
+
+    [Header("클라이언트 매핑")]
+    private Dictionary<NetworkId, int> _networkToConnectionId = new(); // ObjectId , playerId
+    private Dictionary<int, PlayerStateSnapshot> _playerStates; // networkId, playerstatesnapshot
 
     [Header("로그")]
     private RuntimeDiagnosticsCollector _diagnostics;
@@ -62,6 +67,7 @@ public class Host : MonoBehaviour
     {
         BindTick();
         _diagnostics = new RuntimeDiagnosticsCollector();
+        _playerStates = new Dictionary<int, PlayerStateSnapshot>();
     }
     private void Update()
     {
@@ -94,6 +100,7 @@ public class Host : MonoBehaviour
         _hostLogger = new SessionDiagnosticsLogger();
         _networkIdGenerator = new NetworkIdGenerator();
         _networkObjectRegistry = new NetworkObjectRegistry();
+        _networkConnectionGenerator = new NetworkConnectionGenerator();
         PrefabMgr = new PrefabManager();
         GameMgr = gm;
 
@@ -112,11 +119,12 @@ public class Host : MonoBehaviour
         _hostNetObject.AssignNetworkId(_hostNetworkId);
         _networkObjectRegistry.Register(_hostNetObject);
 
+
         if (result)
             _isStarted = false;
     }
 
-    private void ReceivedNetworkEnvelope(NetworkEnvelope envelope)
+    private void ReceivedNetworkEnvelope(int connectionId, NetworkEnvelope envelope)
     {
         _diagnostics.ReportPacketReceived();
 
@@ -124,7 +132,7 @@ public class Host : MonoBehaviour
         {
             case NetworkMessageType.Join:
                 {
-                    SendJoinResult(envelope.Payload);
+                    SendJoinResult(connectionId, envelope.Payload);
                 }
                 break;
             case NetworkMessageType.Ping:
@@ -132,16 +140,16 @@ public class Host : MonoBehaviour
                     _hostLogger.Log($"<color=red>[Host </color> Ping Raw Payload] {System.Text.Encoding.UTF8.GetString(envelope.Payload)}");
                     if (_hostSerializer.TryDeserializeT(envelope.Payload, out PingMessage pingMessage))
                     {
-                        SendPong(pingMessage);
+                        SendPong(connectionId, pingMessage);
                     }
                 }
                 break;
-            case NetworkMessageType.State:
+            case NetworkMessageType.Input:
                 {
-                    if (_hostSerializer.TryDeserializeT(envelope.Payload, out PlayerStateMessage stateMessage))
+                    if (_hostSerializer.TryDeserializeT(envelope.Payload, out PlayerInputMessage stateMessage))
                     {
-                        PlayerStateSnapshot temp = stateMessage.Snapshot;
-                        _hostLogger.Log($"<color=red>[Host]</color> Receive Snapshot {temp.NetworkId}, {temp.Hp}, {temp.Position}");
+                        _hostLogger.Log($"<color=red>[Host]</color> Receive Snapshot {stateMessage.NetworkId}, {stateMessage.Move}");
+                        SendStateCalculate(stateMessage, envelope.SenderId);
                     }
                 }
                 break;
@@ -149,7 +157,7 @@ public class Host : MonoBehaviour
     }
 
     #region 전송
-    private void SendJoinResult(byte[] _payload)
+    private void SendJoinResult(int connectionId, byte[] _payload)
     {
         if (_hostSerializer == null)
             return;
@@ -163,6 +171,7 @@ public class Host : MonoBehaviour
             NetworkObject no = GameMgr.ClientObj.GetComponent<NetworkObject>();
             no.AssignNetworkId(newClient);
             _networkObjectRegistry.Register(no);
+
 
             // 1. Join 결과 생성
             JoinResultMessage resultMessage = new JoinResultMessage(
@@ -185,12 +194,12 @@ public class Host : MonoBehaviour
 
             // 3. 응답 전송
             byte[] resultData = _hostSerializer.Serialize(resultEnvelope);
-            if (_hostTransport.SendTo(1, new ArraySegment<byte>(resultData)))
+            if (_hostTransport.SendTo(connectionId, new ArraySegment<byte>(resultData)))
             {
                 _hostLogger.Log("<color=red>[Host]</color> Join 승인 응답 전송");
 
                 if (resultMessage.Success)
-                    SendSpawn(newClient);
+                    SendSpawn(connectionId, newClient);
             }
             else
             {
@@ -199,12 +208,14 @@ public class Host : MonoBehaviour
         }
     }
 
-    private void SendSpawn(NetworkId _networkID)
+    private void SendSpawn(int connectionId, NetworkId _networkID)
     {
         _hostTickScheduler.StartTick();
+        Vector3 pos = new Vector3(0, 10, 0);
 
         SpawnMessage spawnMessage = new SpawnMessage(
                 messageType: SpawnMessageType.Spawn,
+                spawnPos: pos,
                 networkId: _networkID,
                 prefabTypeId: 0
             );
@@ -220,7 +231,7 @@ public class Host : MonoBehaviour
                 );
 
         byte[] resultData = _hostSerializer.Serialize(resultEnvelope);
-        if (_hostTransport.SendTo(1, new ArraySegment<byte>(resultData)))
+        if (_hostTransport.SendTo(connectionId, new ArraySegment<byte>(resultData)))
         {
             _hostLogger.Log("<color=red>[Host]</color> SpawnMessage 전송 성공");
         }
@@ -228,6 +239,17 @@ public class Host : MonoBehaviour
         {
             _hostLogger.Log("<color=red>[Host]</color> SpawnMessage 전송 실패");
         }
+
+        _networkToConnectionId[_networkID] = connectionId;
+
+        PlayerStateSnapshot _playerStateSnapshot = new PlayerStateSnapshot();
+        _playerStateSnapshot.Tick = _hostTickScheduler.CurrentTick + 2;
+        _playerStateSnapshot.SenderNetworkId = _networkID.Value;
+        _playerStateSnapshot.Position = pos;
+        _playerStateSnapshot.Rotation = Quaternion.identity;
+        _playerStateSnapshot.Hp = 100;
+
+        _playerStates.Add(_networkID.Value, _playerStateSnapshot);
     }
 
     private void SendJumpEvent(int _tick)
@@ -250,7 +272,7 @@ public class Host : MonoBehaviour
 
         byte[] data = _hostSerializer.Serialize(envelope);
 
-        if (_hostTransport.SendTo(1, new ArraySegment<byte>(data)))
+        if (_hostTransport.Broadcast(new ArraySegment<byte>(data)))
         {
             _hostLogger.Log("<color=red>[Host]</color> Event Message Send Succeeded");
         }
@@ -260,7 +282,7 @@ public class Host : MonoBehaviour
         }
     }
 
-    private void SendPong(PingMessage pingMessage)
+    private void SendPong(int connectionID, PingMessage pingMessage)
     {
         if (_hostSerializer == null || _hostTransport == null)
             return;
@@ -269,8 +291,6 @@ public class Host : MonoBehaviour
         PongMessage pongMessage = new PongMessage();
         pongMessage.Sequence = pingMessage.Sequence;
         pongMessage.SentTime = pingMessage.SentTime;
-
-        Debug.LogError($"{pingMessage.SentTime} ===> {pongMessage.SentTime}");
 
         byte[] payload = _hostSerializer.SerializeT(pongMessage);
 
@@ -284,13 +304,91 @@ public class Host : MonoBehaviour
         byte[] data = _hostSerializer.Serialize(envelope);
         _diagnostics.ReportPacketSent();
 
-        if (_hostTransport.SendTo(1, new ArraySegment<byte>(data)))
+        if (_hostTransport.SendTo(connectionID, new ArraySegment<byte>(data)))
         {
             _hostLogger.Log("<color=red>[Host]</color> Pong Message Send Succeeded");
         }
         else
         {
             _hostLogger.Log("<color=red>[Host]</color> Pong Message Send Failed");
+        }
+    }
+
+    private void SendStateSnapshot(int tick)
+    {
+        // client 로 state 전송
+        if (_hostPlayerTransform == null)
+            return;
+
+        PlayerStateSnapshot snapshot = new PlayerStateSnapshot(
+            tick,
+            _hostNetworkId.Value,
+            _hostPlayerTransform.position,
+            _hostPlayerTransform.rotation,
+            _hostHp
+        );
+
+        PlayerStateMessage message = new PlayerStateMessage(snapshot);
+
+        byte[] payload = _hostSerializer.SerializeT(message);
+
+        NetworkEnvelope resultEnvelope =
+                new NetworkEnvelope(
+                    NetworkMessageType.State,
+                    senderId: _hostNetworkId,
+                    tick: _hostTickScheduler.CurrentTick + 2,
+                    payload
+                );
+
+        _hostLogger.Log($"<color=red>[Host]</color> Input-State Snapshot {_hostNetworkId.Value} {_hostPlayerTransform.position}");
+        byte[] resultData = _hostSerializer.Serialize(resultEnvelope);
+        if (_hostTransport.Broadcast(new ArraySegment<byte>(resultData)))
+        {
+            _hostLogger.Log("<color=red>[Host]</color> Input-State Snapshot Message Send Successed");
+        }
+        else
+        {
+            _hostLogger.Log("<color=red>[Host]</color> Input-State Snapshot Message Send Failed");
+        }
+    }
+
+    private void SendStateCalculate(PlayerInputMessage msg, NetworkId senderId)
+    {
+        if (_playerStates.TryGetValue(senderId.Value, out PlayerStateSnapshot snap))
+        {
+            Vector3 input = msg.Move;
+            Vector3 moveDir = input.sqrMagnitude > 1f ? input.normalized : input;
+            snap.Position += moveDir * 5 * _hostTickScheduler.TickInterval;
+            _playerStates[senderId.Value] = snap;
+        }
+        else
+        {
+            _hostLogger.LogError("<color=red>[Host]</color> client SendState is null");
+            return;
+        }
+
+
+        PlayerStateCallbackMessage message = new PlayerStateCallbackMessage(snap, true);
+
+        byte[] payload = _hostSerializer.SerializeT(message);
+
+        NetworkEnvelope resultEnvelope =
+                new NetworkEnvelope(
+                    NetworkMessageType.StateCallback,
+                    senderId: _hostNetworkId,
+                    tick: _hostTickScheduler.CurrentTick,
+                    payload
+                );
+
+        byte[] resultData = _hostSerializer.Serialize(resultEnvelope);
+        int connect = _networkToConnectionId[senderId];
+        if (_hostTransport.SendTo(connect, new ArraySegment<byte>(resultData)))
+        {
+            _hostLogger.Log("<color=red>[Host]</color> Snapshot Callback Message Send Successed");
+        }
+        else
+        {
+            _hostLogger.Log("<color=red>[Host]</color> Snapshot Callback Message Send Failed");
         }
     }
     #endregion
@@ -348,45 +446,7 @@ public class Host : MonoBehaviour
         }
     }
 
-    private void SendStateSnapshot(int tick)
-    {
-        // client 로 state 전송
-        if (_hostPlayerTransform == null)
-            return;
 
-        PlayerStateSnapshot snapshot = new PlayerStateSnapshot(
-            tick,
-            1, // host player networkId
-            _hostPlayerTransform.position,
-            _hostPlayerTransform.rotation,
-            _hostHp
-        );
-
-        PlayerStateMessage message = new PlayerStateMessage(snapshot);
-
-
-
-        byte[] payload = _hostSerializer.SerializeT(message);
-
-        NetworkEnvelope resultEnvelope =
-                new NetworkEnvelope(
-                    NetworkMessageType.State,
-                    senderId: _hostNetworkId,
-                    tick: _hostTickScheduler.CurrentTick + 2,
-                    payload
-                );
-
-
-        byte[] resultData = _hostSerializer.Serialize(resultEnvelope);
-        if (_hostTransport.SendTo(1, new ArraySegment<byte>(resultData)))
-        {
-            _hostLogger.Log("<color=red>[Host]</color> Input-State Snapshot Message Send Successed");
-        }
-        else
-        {
-            _hostLogger .Log("<color=red>[Host]</color> Input-State Snapshot Message Send Failed");
-        }
-    }
     #endregion
 
     #region 입력

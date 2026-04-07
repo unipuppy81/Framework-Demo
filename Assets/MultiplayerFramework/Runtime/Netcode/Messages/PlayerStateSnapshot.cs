@@ -6,17 +6,17 @@ namespace MultiplayerFramework.Runtime.Netcode.Messages
     public struct PlayerStateSnapshot
     {
         public int Tick;
-        public int NetworkId;
+        public int SenderNetworkId;
 
         public Vector3 Position;
         public Quaternion Rotation;
 
         public int Hp;
 
-        public PlayerStateSnapshot(int tick, int networkId, Vector3 position, Quaternion rotation, int hp)
+        public PlayerStateSnapshot(int tick, int senderNetId, Vector3 position, Quaternion rotation, int hp)
         {
             Tick = tick;
-            NetworkId = networkId;
+            SenderNetworkId = senderNetId;
             Position = position;
             Rotation = rotation;
             Hp = hp;

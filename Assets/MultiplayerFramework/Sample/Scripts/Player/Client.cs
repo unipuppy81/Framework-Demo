@@ -7,6 +7,7 @@ using MultiplayerFramework.Runtime.Netcode.Messages;
 using MultiplayerFramework.Runtime.Netcode.Messages.Event;
 using MultiplayerFramework.Runtime.NetCode.Objects;
 using MultiplayerFramework.Samples;
+using PlasticGui.WorkspaceWindow.PendingChanges.Changelists;
 using PlasticPipe.PlasticProtocol.Client;
 using System;
 using System.Collections;
@@ -14,6 +15,7 @@ using System.Collections.Generic;
 using System.Net;
 using UnityEditor.Experimental.GraphView;
 using UnityEngine;
+using UnityEngine.UIElements;
 
 public class Client : MonoBehaviour
 {
@@ -30,7 +32,7 @@ public class Client : MonoBehaviour
 
     [SerializeField] private string _playerA_Name = "ClientA";
 
-    [SerializeField] private NetworkId _playerANetworkId;
+    private NetworkId _playerANetworkId;
     [SerializeField] private NetworkObject _playerANetObject;
 
     [Header("Input")]
@@ -81,7 +83,7 @@ public class Client : MonoBehaviour
         _sessionA.OnConnected += SendJoinMessage;
         _sessionA.OnMessageReceived += ReceivedNetworkEnvelope;
 
-        _loggerA.LogError(result
+        _loggerA.Log(result
                ? $"<color=cyan>[Player A]</color> Client start requested. Target={address} : {port}"
                : $"<color=cyan>[Player A]</color> Client start failed. Target={address} : {port}");
 
@@ -97,7 +99,7 @@ public class Client : MonoBehaviour
         }
     }
 
-    private void ReceivedNetworkEnvelope(NetworkEnvelope dataReceivedEnvelope)
+    private void ReceivedNetworkEnvelope(int connectionId, NetworkEnvelope dataReceivedEnvelope)
     {
         switch (dataReceivedEnvelope.Type)
         {
@@ -107,11 +109,12 @@ public class Client : MonoBehaviour
                     {
                         if (joinResult.Success)
                         {
-                            _loggerA.LogError($"<color=cyan>[Player A]</color> Join 성공. PlayerID={joinResult.CallbackId.Value}, PlayerName={joinResult.CallbackName}");
+                            _loggerA.Log($"<color=cyan>[Player A]</color> Join 성공. PlayerID={joinResult.CallbackId.Value}, PlayerName={joinResult.CallbackName}");
+                            _playerANetworkId = joinResult.CallbackId;
                         }
                         else
                         {
-                            _loggerA.LogError($"<color=cyan>[Player A]</color> Join 실패: {joinResult.ErrorReason}");
+                            _loggerA.Log($"<color=cyan>[Player A]</color> Join 실패: {joinResult.ErrorReason}");
                         }
                     }
                 }
@@ -122,9 +125,9 @@ public class Client : MonoBehaviour
                     {
                         if (spawnMessage.MessageType == SpawnMessageType.Spawn)
                         {
-                            _playerANetworkId = spawnMessage.NetworkId;
                             _playerANetObject.AssignNetworkId(_playerANetworkId);
                             _playerATickScheduler.StartTick(dataReceivedEnvelope.Tick);
+                            _playerATransform.position = spawnMessage.SpawnPos;
                         }
                     }
                 }
@@ -134,7 +137,7 @@ public class Client : MonoBehaviour
                     if (_serializerA.TryDeserializeT(dataReceivedEnvelope.Payload, out PlayerStateMessage stateMessage))
                     {
                         PlayerStateSnapshot temp = stateMessage.Snapshot;
-                        _loggerA.LogError($"<color=cyan>[Player A]</color> Receive Snapshot {temp.NetworkId}, {temp.Hp}, {temp.Position}");
+                        _loggerA.Log($"<color=cyan>[Player A]</color> Receive Snapshot {temp.SenderNetworkId}, {temp.Hp}, {temp.Position}");
                     }
                 }
                 break;
@@ -149,6 +152,22 @@ public class Client : MonoBehaviour
                                     _loggerA.LogError($"<color=cyan>[Player A]</color> Receive Jump");
                                 }
                                 break;
+                        }
+                    }
+                }
+                break;
+            case NetworkMessageType.StateCallback:
+                {
+                    Debug.LogError("f");
+                    if (_serializerA.TryDeserializeT(dataReceivedEnvelope.Payload, out PlayerStateCallbackMessage stateCallbackMessage))
+                    {
+                        Debug.LogError($"{stateCallbackMessage.Snapshot}");
+                        if (stateCallbackMessage.IsMove)
+                        {
+                            PlayerStateSnapshot temp = stateCallbackMessage.Snapshot;
+                            _playerATransform.position = temp.Position;
+                            _playerATransform.rotation = temp.Rotation;
+                            Debug.LogWarning($"{temp.Position} / {_playerATransform.position}");
                         }
                     }
                 }
@@ -170,94 +189,6 @@ public class Client : MonoBehaviour
         }
     }
 
-    private void HandleEvent_PlayerA(NetworkTransportEvent transportEvent)
-    {
-        switch (transportEvent.Type)
-        {
-            case NetworkTransportEventType.DataReceived:
-                byte[] dataReceivedPayload = transportEvent.Payload;
-
-                if (!_serializerA.TryDeserialize(dataReceivedPayload, out NetworkEnvelope dataReceivedEnvelope))
-                    return;
-
-
-                _loggerA.Log($"<color=cyan>[Player A]</color> 가 {dataReceivedEnvelope.SenderId} 로부터 데이터 받음 {transportEvent.Type.ToString()} 내역은 {dataReceivedEnvelope.Type.ToString()}");
-                switch (dataReceivedEnvelope.Type)
-                {
-                    case NetworkMessageType.JoinResult:
-                        {
-                            if (_serializerA.TryDeserializeT(dataReceivedEnvelope.Payload, out JoinResultMessage joinResult))
-                            {
-                                if (joinResult.Success)
-                                {
-                                    _loggerA.Log($"<color=cyan>[Player A]</color> Join 성공. PlayerID={joinResult.CallbackId}, PlayerName={joinResult.CallbackName}");
-                                }
-                                else
-                                {
-                                    Debug.LogError($"<color=cyan>[Player A]</color> Join 실패: {joinResult.ErrorReason}");
-                                }
-                            }
-                        }
-                        break;
-                    case NetworkMessageType.Spawn:
-                        {
-                            if (_serializerA.TryDeserializeT(dataReceivedEnvelope.Payload, out SpawnMessage spawnMessage))
-                            {
-                                if (spawnMessage.MessageType == SpawnMessageType.Spawn)
-                                {
-                                    _playerANetworkId = spawnMessage.NetworkId;
-                                    _playerANetObject.AssignNetworkId(_playerANetworkId);
-                                    _playerATickScheduler.StartTick(dataReceivedEnvelope.Tick);
-                                }
-                            }
-                        }
-                        break;
-                    case NetworkMessageType.State:
-                        {
-                            if (_serializerA.TryDeserializeT(dataReceivedEnvelope.Payload, out PlayerStateMessage spawnMessage))
-                            {
-                                PlayerStateSnapshot temp = spawnMessage.Snapshot;
-                                _loggerA.Log($"<color=cyan>[Player A]</color> Receive Snapshot {temp.NetworkId}, {temp.Hp}, {temp.Rotation}, {temp.Position}");
-                            }
-                        }
-                        break;
-                    case NetworkMessageType.Event:
-                        {
-                            if (_serializerA.TryDeserializeT(dataReceivedEnvelope.Payload, out GameplayEventMessage gameEventMessage))
-                            {
-                                switch(gameEventMessage.EventType)
-                                {
-                                    case GameplayEventType.Jump:
-                                        {
-                                            Debug.LogWarning($"<color=cyan>[Player A]</color> Receive Jump");
-                                        }
-                                        break;
-                                }
-                            }
-                        }
-                        break;
-                    case NetworkMessageType.Pong:
-                        {
-                            _diagnostics.ReportPacketReceived();
-
-                            if (_serializerA.TryDeserializeT(dataReceivedEnvelope.Payload, out PongMessage pongMessage))
-                            {
-                                Debug.LogError($"<color=cyan>[Player A]</color> 가 {dataReceivedEnvelope.SenderId} 로부터 pong 받음");
-
-                                float rttMs = (Time.realtimeSinceStartup - pongMessage.SentTime) * 1000;
-                                Debug.LogError($"<color=cyan>[Playr A]</color> {Time.realtimeSinceStartup} - {pongMessage.SentTime} = {rttMs}");
-
-                                _diagnostics.ReportRtt(rttMs);
-                            }
-                        }
-                        break;
-                    default:
-                        break;
-                }
-                break;
-        }
-    }
-
     private void SendJoinMessage()
     {
        JoinMessage joinMessage = new JoinMessage(_playerA_Name);
@@ -268,11 +199,11 @@ public class Client : MonoBehaviour
         NetworkEnvelope connectedEnvelope = new NetworkEnvelope(NetworkMessageType.Join, testSenderID, 0, connectedPayload);
         if(_sessionA.Send(connectedEnvelope))
         {
-            _loggerA.LogError($"<color=cyan>[Player A]</color> Send Join to Host");
+            _loggerA.Log($"<color=cyan>[Player A]</color> Send Join to Host");
         }
         else
         {
-            _loggerA.LogError($"<color=cyan>[Player A]</color> Send Join Failed");
+            _loggerA.Log($"<color=cyan>[Player A]</color> Send Join Failed");
         }
     }
 
@@ -327,7 +258,6 @@ public class Client : MonoBehaviour
     {
         // 1
         _diagnostics.ReportTick(context.Tick);
-
         _lastConsumedCommandA = _playerAInputBuffer.GetOrDefault(context.Tick);
 
 
@@ -345,7 +275,7 @@ public class Client : MonoBehaviour
 
         Vector2 move = new Vector2(x, z);
         Vector3 moveDir = new Vector3(x, 0f, z);
-        _playerATransform.position += moveDir * 5 * context.DeltaTime;
+        //_playerATransform.position += moveDir * 5 * context.DeltaTime;
 
         bool jumpPressed = false;
         bool attackPressed = Input.GetKeyDown(KeyCode.KeypadEnter);
@@ -360,23 +290,21 @@ public class Client : MonoBehaviour
 
         _playerAInputBuffer.Store(command);
 
-        PlayerStateSnapshot snapshot = new PlayerStateSnapshot(
-           context.Tick,
-           1,
-           _playerATransform.position,
-           _playerATransform.rotation,
-           _playerAHp
-       );
+        PlayerInputMessage inputMessage = new PlayerInputMessage(
+            targetTick,
+            _playerANetworkId.Value,
+            moveDir,
+            jumpPressed,
+            attackPressed
+        );
 
-        PlayerStateMessage message = new PlayerStateMessage(snapshot);
-
-        byte[] payload = _serializerA.SerializeT(message);
+        byte[] payload = _serializerA.SerializeT(inputMessage);
 
         NetworkEnvelope resultEnvelope =
                 new NetworkEnvelope(
-                    NetworkMessageType.State,
+                    NetworkMessageType.Input,
                     senderId: _playerANetworkId,
-                    tick: _playerATickScheduler.CurrentTick + 2,
+                    tick: targetTick,
                     payload
                 );
 
@@ -384,11 +312,11 @@ public class Client : MonoBehaviour
         byte[] resultData = _serializerA.Serialize(resultEnvelope);
         if (_transportA.Send(new ArraySegment<byte>(resultData)))
         {
-            _loggerA.LogError("<color=cyan>[Player A]</color> Input-State Message Send Successed");
+            _loggerA.Log("<color=cyan>[Player A]</color> Input-State Message Send Successed");
         }
         else
         {
-            _loggerA.LogError("<color=cyan>[Player A]</color> Input-State Message Send Failed");
+            _loggerA.Log("<color=cyan>[Player A]</color> Input-State Message Send Failed");
         }
     }
 

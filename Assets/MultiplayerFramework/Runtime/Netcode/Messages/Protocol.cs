@@ -1,5 +1,6 @@
 using MultiplayerFramework.Runtime.NetCode.Objects;
 using System;
+using System.Numerics;
 
 namespace MultiplayerFramework.Runtime.Netcode.Messages
 {    /// <summary>
@@ -29,6 +30,8 @@ namespace MultiplayerFramework.Runtime.Netcode.Messages
 
         Ping,
         Pong,
+
+        StateCallback,
         // µð¹ö±×
         Diagnostic
     }
@@ -44,10 +47,12 @@ namespace MultiplayerFramework.Runtime.Netcode.Messages
         public SpawnMessageType MessageType;
         public NetworkId NetworkId;
         public int PrefabTypeId;
+        public UnityEngine.Vector3 SpawnPos;
 
-        public SpawnMessage(SpawnMessageType messageType,  NetworkId networkId, int prefabTypeId)
+        public SpawnMessage(SpawnMessageType messageType, UnityEngine.Vector3 spawnPos, NetworkId networkId, int prefabTypeId)
         {
             MessageType = messageType;
+            SpawnPos = spawnPos;
             NetworkId = networkId;
             PrefabTypeId = prefabTypeId;
         }
@@ -125,6 +130,39 @@ namespace MultiplayerFramework.Runtime.Netcode.Messages
         public PlayerStateMessage(PlayerStateSnapshot snapshot)
         {
             Snapshot = snapshot;
+        }
+    }
+
+    [Serializable]
+    public struct PlayerInputMessage
+    {
+        public int Tick;
+        public int NetworkId;
+        public UnityEngine.Vector3 Move;
+        public bool JumpPressed;
+        public bool AttackPressed;
+
+        public PlayerInputMessage(int tick, int networkId, UnityEngine.Vector3 move, bool jumpPressed, bool attackPressed)
+        {
+            Tick = tick;
+            NetworkId = networkId;
+            Move = move;
+            JumpPressed = jumpPressed;
+            AttackPressed = attackPressed;
+        }
+    }
+
+
+    [Serializable]
+    public struct PlayerStateCallbackMessage
+    {
+        public PlayerStateSnapshot Snapshot;
+        public bool IsMove;
+
+        public PlayerStateCallbackMessage(PlayerStateSnapshot snapshot, bool isMove)
+        {
+            Snapshot = snapshot;
+            IsMove = isMove;
         }
     }
 }

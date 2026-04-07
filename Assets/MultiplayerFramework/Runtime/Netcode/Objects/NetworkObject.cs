@@ -8,7 +8,6 @@ namespace MultiplayerFramework.Runtime.NetCode.Objects
     public sealed class ConnectedClientInfo
     {
         public int ConnectionId;
-        public int PlayerId;
         public string PlayerName;
         public NetworkId PlayerNetworkId;
     }

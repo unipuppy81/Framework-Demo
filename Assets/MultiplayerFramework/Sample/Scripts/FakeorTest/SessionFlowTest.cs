@@ -118,7 +118,7 @@ namespace MultiplayerFramework.Sample
             Debug.LogError($"[Session] Error: {errorMessage}");
         }
 
-        private void HandleMessageReceived(NetworkEnvelope message)
+        private void HandleMessageReceived(int connectionId, NetworkEnvelope message)
         {
             string payloadText = message.Payload != null
                 ? Encoding.UTF8.GetString(message.Payload)

@@ -20,7 +20,7 @@ namespace MultiplayerFramework.Runtime.Core.Session
         /// <summary>
         /// 역직렬화가 끝난 메시지를 상위 계층에 전달
         /// </summary>
-        event Action<NetworkEnvelope> OnMessageReceived;
+        event Action<int, NetworkEnvelope> OnMessageReceived;
 
         /// <summary>
         /// 세션 연결 성공 시 호출

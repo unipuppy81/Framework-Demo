@@ -185,19 +185,23 @@ namespace MultiplayerFramework.Runtime.Core.Transport
         /// <summary>
         /// 서버 모드에서 현재 연결된 모든 클라이언트에게 브로드캐스트
         /// </summary>
-        public void Broadcast(ArraySegment<byte> payload)
+        public bool Broadcast(ArraySegment<byte> payload)
         {
             if (!_isStarted || !_isHost)
-                return;
+                return false;
 
-            for (int i = 0; i < _serverConnections.Count; i++)
+            foreach (var pair in _serverConnections)
             {
-                NetworkConnection connection = _serverConnections[i];
+                NetworkConnection connection = pair.Value;
+
                 if (!connection.IsCreated)
                     continue;
 
                 SendToConnection(connection, payload);
             }
+
+
+            return true;
         }
 
         /// <summary>
