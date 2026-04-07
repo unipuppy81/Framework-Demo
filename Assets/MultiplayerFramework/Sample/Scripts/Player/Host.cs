@@ -354,12 +354,15 @@ public class Host : MonoBehaviour
 
     private void SendStateCalculate(PlayerInputMessage msg, NetworkId senderId)
     {
-        if (_playerStates.TryGetValue(senderId.Value, out PlayerStateSnapshot snap))
+        if (_playerStates.TryGetValue(senderId.Value, out PlayerStateSnapshot state))
         {
-            Vector3 input = msg.Move;
-            Vector3 moveDir = input.sqrMagnitude > 1f ? input.normalized : input;
-            snap.Position += moveDir * 5 * _hostTickScheduler.TickInterval;
-            _playerStates[senderId.Value] = snap;
+            Vector3 moveDir = msg.Move;
+            if (moveDir.sqrMagnitude > 1f)
+                moveDir.Normalize();
+
+            state.Position += moveDir * 5 * _hostTickScheduler.TickInterval;
+            state.Tick = msg.Tick;
+            _playerStates[senderId.Value] = state;
         }
         else
         {
@@ -368,7 +371,7 @@ public class Host : MonoBehaviour
         }
 
 
-        PlayerStateCallbackMessage message = new PlayerStateCallbackMessage(snap, true);
+        PlayerStateCallbackMessage message = new PlayerStateCallbackMessage(state, true);
 
         byte[] payload = _hostSerializer.SerializeT(message);
 
