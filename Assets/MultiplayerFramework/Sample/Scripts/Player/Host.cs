@@ -11,6 +11,7 @@ using MultiplayerFramework.Samples;
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using UnityEditor.U2D;
 using UnityEditor.VersionControl;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -35,6 +36,8 @@ public class Host : MonoBehaviour
     [Header("Input")]
     private PlayerInputCommand _lastConsumedCommand;
     [SerializeField] private Transform _hostPlayerTransform;
+    [SerializeField] private float _hostVerticalVelocity;
+    [SerializeField] private bool _hostIsGrounded;
     [SerializeField] private int _hostHp = 100;
     [SerializeField] private float _moveSpeed = 5f;
     [SerializeField] private bool _isStarted;
@@ -323,6 +326,8 @@ public class Host : MonoBehaviour
         PlayerStateSnapshot snapshot = new PlayerStateSnapshot(
             tick,
             _hostNetworkId.Value,
+            _hostVerticalVelocity,
+            _hostIsGrounded,
             _hostPlayerTransform.position,
             _hostPlayerTransform.rotation,
             _hostHp
@@ -341,6 +346,7 @@ public class Host : MonoBehaviour
                 );
 
         _hostLogger.Log($"<color=red>[Host]</color> Input-State Snapshot {_hostNetworkId.Value} {_hostPlayerTransform.position}");
+
         byte[] resultData = _hostSerializer.Serialize(resultEnvelope);
         if (_hostTransport.Broadcast(new ArraySegment<byte>(resultData)))
         {
@@ -354,25 +360,61 @@ public class Host : MonoBehaviour
 
     private void SendStateCalculate(PlayerInputMessage msg, NetworkId senderId)
     {
-        if (_playerStates.TryGetValue(senderId.Value, out PlayerStateSnapshot state))
-        {
-            Vector3 moveDir = msg.Move;
-            if (moveDir.sqrMagnitude > 1f)
-                moveDir.Normalize();
-
-            state.Position += moveDir * 5 * _hostTickScheduler.TickInterval;
-            state.Tick = msg.Tick;
-            _playerStates[senderId.Value] = state;
-        }
-        else
+        if (!_playerStates.TryGetValue(senderId.Value, out PlayerStateSnapshot state))
         {
             _hostLogger.LogError("<color=red>[Host]</color> client SendState is null");
             return;
         }
 
+        // 1. 수평 입력
+        Vector3 moveDir = msg.Move;
+        moveDir.y = 0f;
+
+        if (moveDir.sqrMagnitude > 1f)
+            moveDir.Normalize();
+
+        float dt = _hostTickScheduler.TickInterval;
+        float moveSpeed = _moveSpeed;
+        float gravity = -20f;
+        float groundY = 0f;
+
+        // 2. 수평 이동
+        state.Position += moveDir * moveSpeed * dt;
+
+        // 3. 접지 상태 갱신
+        state.IsGrounded = state.Position.y <= groundY + 0.001f;
+
+        // 4. 공중 판정 및 중력 적용
+        if(!state.IsGrounded)
+        {
+            state.VerticalVelocity += gravity * dt;
+        }
+        else
+        {
+            state.VerticalVelocity = 0f;
+        }
+
+        // 5. 수직 이동
+        state.Position.y += state.VerticalVelocity * dt;
+
+        // 6. 바닥 보정
+        float groundEpsilon = 5f;
+
+        if(state.Position.y <= groundY + groundEpsilon)
+        {
+            state.Position.y = groundY;
+            state.VerticalVelocity = 0f;
+            state.IsGrounded = true;
+        }
+        else
+        {
+            state.IsGrounded = false;
+        }
+
+        state.Tick = msg.Tick;
+        _playerStates[senderId.Value] = state;
 
         PlayerStateCallbackMessage message = new PlayerStateCallbackMessage(state, true);
-
         byte[] payload = _hostSerializer.SerializeT(message);
 
         NetworkEnvelope resultEnvelope =
@@ -385,6 +427,7 @@ public class Host : MonoBehaviour
 
         byte[] resultData = _hostSerializer.Serialize(resultEnvelope);
         int connect = _networkToConnectionId[senderId];
+
         if (_hostTransport.SendTo(connect, new ArraySegment<byte>(resultData)))
         {
             _hostLogger.Log("<color=red>[Host]</color> Snapshot Callback Message Send Successed");
@@ -463,13 +506,8 @@ public class Host : MonoBehaviour
             Input.GetAxisRaw("Vertical")
         );
 
-        bool attackPressed = Input.GetMouseButtonDown(0);
-        bool jumpPressed = Input.GetKeyDown(KeyCode.Space);
-
-        if(jumpPressed)
-        {
-            TryAttack();
-        }
+        bool attackPressed = Input.GetKeyDown(KeyCode.Space); 
+        bool jumpPressed = Input.GetMouseButtonDown(0);
 
         int targetTick = _hostTickScheduler.CurrentTick + 1;
 
@@ -481,6 +519,11 @@ public class Host : MonoBehaviour
         );
 
         _hostInputBuffer.Store(command);
+
+        if (attackPressed)
+        {
+            TryAttack();
+        }
     }
 
     private void TryAttack()
@@ -491,17 +534,114 @@ public class Host : MonoBehaviour
             return;
 
         NetworkId targetId = targets[0];
-        ApplyDamage(targetId);
+        ApplyDamageAndSendPlayerState(targetId);
     }
 
     private List<NetworkId> FindTargetsInRange()
     {
-        return new List<NetworkId>();
+        List<NetworkId> result = new List<NetworkId>();
+        
+        Vector3 hostPos = _hostPlayerTransform.position;
+        float attackRange = 5f;
+
+        foreach(KeyValuePair<int, PlayerStateSnapshot> pair in _playerStates)
+        {
+            PlayerStateSnapshot targetState = pair.Value;
+
+            // Host 자기 자신은 제외
+            if (targetState.SenderNetworkId == _hostNetworkId.Value)
+                continue;
+
+            float distance = Vector3.Distance(hostPos, targetState.Position);
+            if (distance <= attackRange)
+            {
+                result.Add(new NetworkId(targetState.SenderNetworkId));
+            }
+        }
+
+        return result;
     }
 
-    private void ApplyDamage(NetworkId targetId)
+    private void ApplyDamageAndSendPlayerState(NetworkId targetId)
     {
+        if (_playerStates.TryGetValue(targetId.Value, out PlayerStateSnapshot targetState) == false)
+        {
+            _hostLogger.LogError($"<color=red>[Host]</color> ApplyDamage failed. target not found: {targetId.Value}");
+            return;
+        }
 
+        int damage = 10;
+        targetState.Hp = Mathf.Max(0, targetState.Hp - damage);
+        targetState.Tick = _hostTickScheduler.CurrentTick;
+
+        bool isDead = targetState.Hp <= 0;
+
+        _playerStates[targetId.Value] = targetState;
+
+        _hostLogger.Log($"<color=red>[Host]</color> Damage Applied Target={targetId.Value}, Hp={targetState.Hp}");
+
+        // 피해받은 대상에게 최신 상태 전송
+        PlayerStateCallbackMessage message = new PlayerStateCallbackMessage(targetState, true);
+        byte[] payload = _hostSerializer.SerializeT(message);
+
+        NetworkEnvelope resultEnvelope = new NetworkEnvelope(
+            NetworkMessageType.StateCallback,
+            senderId: _hostNetworkId,
+            tick: _hostTickScheduler.CurrentTick,
+            payload
+        );
+
+        byte[] resultData = _hostSerializer.Serialize(resultEnvelope);
+
+        if (_networkToConnectionId.TryGetValue(targetId, out int connectionId))
+        {
+            if (_hostTransport.SendTo(connectionId, new ArraySegment<byte>(resultData)))
+            {
+                _hostLogger.Log($"<color=red>[Host]</color> Damage State Send Success Target={targetId.Value}");
+            }
+            else
+            {
+                _hostLogger.Log($"<color=red>[Host]</color> Damage State Send Failed Target={targetId.Value}");
+            }
+        }
+
+
+        if (isDead)
+            HandleDeath(targetId, targetState);
+    }
+
+    private void HandleDeath(NetworkId targetId, PlayerStateSnapshot targetState)
+    {
+        _hostLogger.Log($"<color=red>[Host]</color> Target Dead = {targetId.Value}");
+
+        PlayerDeathMessage deathMessage = new PlayerDeathMessage(
+            targetId.Value,
+            _hostTickScheduler.CurrentTick
+        );
+
+        byte[] payload = _hostSerializer.SerializeT(deathMessage);
+
+        NetworkEnvelope envelope = new NetworkEnvelope(
+            NetworkMessageType.PlayerDeath,
+            senderId: _hostNetworkId,
+            tick: _hostTickScheduler.CurrentTick,
+            payload
+        );
+
+        byte[] data = _hostSerializer.Serialize(envelope);
+
+        if (_networkToConnectionId.TryGetValue(targetId, out int connectionId))
+        {
+            _hostTransport.SendTo(connectionId, new ArraySegment<byte>(data));
+        }
+    }
+    #endregion
+
+    #region Client
+
+    private void TickClientPlayer(int playerId, TickContext context)
+    {
+        PlayerInputCommand command;
     }
     #endregion
 }

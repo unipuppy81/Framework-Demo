@@ -158,20 +158,27 @@ public class Client : MonoBehaviour
                 break;
             case NetworkMessageType.StateCallback:
                 {
-                    Debug.LogError("f");
                     if (_serializerA.TryDeserializeT(dataReceivedEnvelope.Payload, out PlayerStateCallbackMessage stateCallbackMessage))
                     {
-                        Debug.LogError($"{stateCallbackMessage.Snapshot}");
                         if (stateCallbackMessage.IsMove)
                         {
                             PlayerStateSnapshot temp = stateCallbackMessage.Snapshot;
                             _playerATransform.position = temp.Position;
                             _playerATransform.rotation = temp.Rotation;
-                            Debug.LogWarning($"{temp.Position} / {_playerATransform.position}");
+                            _playerAHp = temp.Hp;
                         }
                     }
                 }
                 break;
+            case NetworkMessageType.PlayerDeath:
+                {
+                    if (_serializerA.TryDeserializeT(dataReceivedEnvelope.Payload, out PlayerDeathMessage deathMessage))
+                    {
+                        gameObject.SetActive(false);
+                    }
+                }
+                break;
+
             case NetworkMessageType.Pong:
                 {
                     _diagnostics.ReportPacketReceived();

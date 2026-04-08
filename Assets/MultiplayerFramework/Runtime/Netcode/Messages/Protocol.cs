@@ -32,6 +32,7 @@ namespace MultiplayerFramework.Runtime.Netcode.Messages
         Pong,
 
         StateCallback,
+        PlayerDeath,
         // µð¹ö±×
         Diagnostic
     }
@@ -163,6 +164,19 @@ namespace MultiplayerFramework.Runtime.Netcode.Messages
         {
             Snapshot = snapshot;
             IsMove = isMove;
+        }
+    }
+
+    [Serializable]
+    public struct PlayerDeathMessage
+    {
+        public int TargetId;
+        public int CurrentTick;
+
+        public PlayerDeathMessage(int targetId, int currentTick)
+        {
+            TargetId = targetId;
+            CurrentTick = currentTick;
         }
     }
 }
