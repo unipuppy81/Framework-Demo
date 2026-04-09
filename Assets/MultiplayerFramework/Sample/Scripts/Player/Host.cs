@@ -1,3 +1,4 @@
+using MultiplayerFramework.Runtime.AOI;
 using MultiplayerFramework.Runtime.Core.Diagnostics;
 using MultiplayerFramework.Runtime.Core.Session;
 using MultiplayerFramework.Runtime.Core.Tick;
@@ -6,15 +7,11 @@ using MultiplayerFramework.Runtime.Gameplay.Input;
 using MultiplayerFramework.Runtime.Netcode.Messages;
 using MultiplayerFramework.Runtime.Netcode.Messages.Event;
 using MultiplayerFramework.Runtime.NetCode.Objects;
-using MultiplayerFramework.Runtime.Sample.Player;
 using MultiplayerFramework.Samples;
 using System;
-using System.Collections;
 using System.Collections.Generic;
-using UnityEditor.U2D;
-using UnityEditor.VersionControl;
 using UnityEngine;
-using UnityEngine.UIElements;
+
 
 public class Host : MonoBehaviour
 {
@@ -61,6 +58,13 @@ public class Host : MonoBehaviour
     private Dictionary<NetworkId, int> _networkToConnectionId = new(); // ObjectId , playerId
     private Dictionary<int, PlayerStateSnapshot> _playerStates; // networkId, playerstatesnapshot
 
+
+    [Header("AOI")]
+    private AOISystem _aoiSystem;
+    private readonly Dictionary<int, NetworkId> _observerByConnection = new();
+    private List<NetworkId> _entered = new();
+    private List<NetworkId> _exited = new();
+
     [Header("로그")]
     private RuntimeDiagnosticsCollector _diagnostics;
     public RuntimeDiagnosticsCollector Diagnostics => _diagnostics;
@@ -70,8 +74,10 @@ public class Host : MonoBehaviour
     {
         BindTick();
         _diagnostics = new RuntimeDiagnosticsCollector();
+        _aoiSystem = new AOISystem(enterRadius: 12f, exitRadius: 15f);
         _playerStates = new Dictionary<int, PlayerStateSnapshot>();
     }
+
     private void Update()
     {
         _diagnostics.Update(Time.deltaTime);
@@ -121,7 +127,8 @@ public class Host : MonoBehaviour
         _hostNetObject = GetComponent<NetworkObject>();
         _hostNetObject.AssignNetworkId(_hostNetworkId);
         _networkObjectRegistry.Register(_hostNetObject);
-
+        _observerByConnection[_hostNetworkId.Value] = _hostNetworkId;
+        Debug.LogError($"[Host] 현재 연결된 사람 수: {_observerByConnection.Count}");
 
         if (result)
             _isStarted = false;
@@ -169,12 +176,14 @@ public class Host : MonoBehaviour
         {
             _hostLogger.Log($"<color=red>[Host]</color> Join 요청 수신: {joinMessage.PlayerName}");
 
-            //NetworkId newClient = GenerateClientId();
             NetworkId newClient = _networkIdGenerator.Create();
             NetworkObject no = GameMgr.ClientObj.GetComponent<NetworkObject>();
             no.AssignNetworkId(newClient);
             _networkObjectRegistry.Register(no);
+            _observerByConnection[newClient.Value] = newClient;
 
+            // 현재 연결 인원 수 출력
+            Debug.LogError($"[Host] 현재 연결된 사람 수: {_observerByConnection.Count}");
 
             // 1. Join 결과 생성
             JoinResultMessage resultMessage = new JoinResultMessage(
@@ -208,6 +217,8 @@ public class Host : MonoBehaviour
             {
                 _hostLogger.Log("<color=red>[Host]</color> Join 승인 응답 전송 실패");
             }
+
+
         }
     }
 
@@ -345,16 +356,29 @@ public class Host : MonoBehaviour
                     payload
                 );
 
+        byte[] resultData = _hostSerializer.Serialize(resultEnvelope);
         _hostLogger.Log($"<color=red>[Host]</color> Input-State Snapshot {_hostNetworkId.Value} {_hostPlayerTransform.position}");
 
-        byte[] resultData = _hostSerializer.Serialize(resultEnvelope);
-        if (_hostTransport.Broadcast(new ArraySegment<byte>(resultData)))
+        foreach (KeyValuePair<int, NetworkId> pair in _observerByConnection)
         {
-            _hostLogger.Log("<color=red>[Host]</color> Input-State Snapshot Message Send Successed");
-        }
-        else
-        {
-            _hostLogger.Log("<color=red>[Host]</color> Input-State Snapshot Message Send Failed");
+            int connectionId = pair.Key;
+            NetworkId observerNetworkId = pair.Value;
+
+            if (observerNetworkId.Equals(_hostNetworkId))
+                continue;
+
+            // host가 visible 한지 검사
+            if (_aoiSystem.IsVisible(connectionId, _hostNetworkId) == false)
+                continue;
+
+            if (_hostTransport.SendTo(connectionId, new ArraySegment<byte>(resultData)))
+            {
+                _hostLogger.Log($"<color=red>[Host]</color> State Send Success conn={connectionId}");
+            }
+            else
+            {
+                _hostLogger.Log($"<color=red>[Host]</color> State Send Failed conn={connectionId}");
+            }
         }
     }
 
@@ -460,7 +484,10 @@ public class Host : MonoBehaviour
         // 2. host authoritative 시뮬레이션 진행
         SimulateHostWorld(context);
 
-        // 3. 상태 스냅샷 전송
+        // 3. AOI 갱신
+        UpdateAOI();
+
+        // 4. 상태 스냅샷 전송
         SendStateSnapshot(context.Tick);
     }
 
@@ -637,11 +664,50 @@ public class Host : MonoBehaviour
     }
     #endregion
 
-    #region Client
+    #region AOI
 
-    private void TickClientPlayer(int playerId, TickContext context)
+    private void UpdateAOI()
     {
-        PlayerInputCommand command;
+        foreach (KeyValuePair<int, NetworkId> pair in _observerByConnection)
+        {
+            int connectionId = pair.Key;
+            NetworkId observerNetworkId = pair.Value;
+
+            if (_networkObjectRegistry.TryGet(observerNetworkId, out NetworkObject observerObject) == false)
+                continue;
+
+            _aoiSystem.UpdateObserver(
+                connectionId,
+                observerNetworkId.Value,
+                observerObject.transform.position,
+                _networkObjectRegistry,
+                _entered,
+                _exited
+            );
+
+            for (int i = 0; i < _entered.Count; i++)
+            {
+                _hostLogger.LogWarning($"<color=red>[Host AOI]</color> Enter conn={connectionId}, target={_entered[i]}");
+            }
+
+            for (int i = 0; i < _exited.Count; i++)
+            {
+                _hostLogger.LogWarning($"<color=red>[Host AOI]</color> Exit conn={connectionId}, target={_exited[i]}");
+            }
+        }
+    }
+
+    private void OnDrawGizmos()
+    {
+        Vector3 center = transform.position;
+
+        // enter 반경
+        Gizmos.color = Color.green;
+        Gizmos.DrawWireSphere(center, 12);
+
+        // exit 반경
+        Gizmos.color = Color.red;
+        Gizmos.DrawWireSphere(center, 15);
     }
     #endregion
 }

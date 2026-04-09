@@ -1,12 +1,18 @@
 using MultiplayerFramework.Runtime.NetCode.Objects;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
 namespace MultiplayerFramework.Runtime.NetCode.Objects
 {
     public class NetworkObjectRegistry
     {
-        private readonly Dictionary<NetworkId, NetworkObject> _objects = new();
+        private Dictionary<NetworkId, NetworkObject> _objects = new();
+
+        public IEnumerable<NetworkObject> GetAll()
+        {
+            return _objects.Values;
+        }
 
         public bool Register(NetworkObject networkObject)
         {
@@ -40,6 +46,7 @@ namespace MultiplayerFramework.Runtime.NetCode.Objects
         {
             return _objects.TryGetValue(networkId, out networkObject);
         }
+
 
         public void Clear()
         {
