@@ -30,6 +30,10 @@ public class Host : MonoBehaviour
     private readonly InputBuffer _hostInputBuffer = new();
 
 
+    [Header("Tick")]
+    // NetworkID, Tick, PlayerInputMessage
+    private Dictionary<int, Dictionary<int, PlayerInputMessage>> _inputMessageStore;
+
     [Header("Input")]
     private PlayerInputCommand _lastConsumedCommand;
     [SerializeField] private Transform _hostPlayerTransform;
@@ -76,6 +80,7 @@ public class Host : MonoBehaviour
         _diagnostics = new RuntimeDiagnosticsCollector();
         _aoiSystem = new AOISystem(enterRadius: 12f, exitRadius: 15f);
         _playerStates = new Dictionary<int, PlayerStateSnapshot>();
+        _inputMessageStore = new Dictionary<int, Dictionary<int, PlayerInputMessage>>();
     }
 
     private void Update()
@@ -84,10 +89,6 @@ public class Host : MonoBehaviour
 
         CollectHostInput();
         _hostSession?.Poll();
-
-        //_hostTransport?.Poll();
-        //ConsumeEvent_Host();
-
     }
 
     private void OnDestroy()
@@ -156,10 +157,18 @@ public class Host : MonoBehaviour
                 break;
             case NetworkMessageType.Input:
                 {
-                    if (_hostSerializer.TryDeserializeT(envelope.Payload, out PlayerInputMessage stateMessage))
+                    if (_hostSerializer.TryDeserializeT(envelope.Payload, out PlayerInputMessage inputMessage))
                     {
-                        _hostLogger.Log($"<color=red>[Host]</color> Receive Snapshot {stateMessage.NetworkId}, {stateMessage.Move}");
-                        SendStateCalculate(stateMessage, envelope.SenderId);
+                        _hostLogger.Log(
+                            $"<color=red>[Host]</color> Receive Input " +
+                            $"sender={envelope.SenderId}, netId={inputMessage.NetworkId}, tick={inputMessage.Tick}, move={inputMessage.Move}"
+                        );
+
+                        StoreInputMessage(envelope.SenderId.Value, inputMessage);
+                    }
+                    else
+                    {
+                        _hostLogger.Log("<color=red>[Host]</color> Failed to deserialize PlayerInputMessage");
                     }
                 }
                 break;
@@ -422,7 +431,7 @@ public class Host : MonoBehaviour
         state.Position.y += state.VerticalVelocity * dt;
 
         // 6. 바닥 보정
-        float groundEpsilon = 5f;
+        float groundEpsilon = 1f;
 
         if(state.Position.y <= groundY + groundEpsilon)
         {
@@ -478,16 +487,19 @@ public class Host : MonoBehaviour
     {
         _diagnostics.ReportTick(context.Tick);
 
-        // 1. host 입력/명령 소모
+        // 1. host 입력 소모
         ConsumeHostInput(context);
 
-        // 2. host authoritative 시뮬레이션 진행
+        // 2. host authoritative 시뮬레이션
         SimulateHostWorld(context);
 
-        // 3. AOI 갱신
+        // 3. remote Client 입력 소모
+        SimulateRemotePlayers(context);
+
+        // 4. AOI 갱신
         UpdateAOI();
 
-        // 4. 상태 스냅샷 전송
+        // 5. 상태 스냅샷 전송
         SendStateSnapshot(context.Tick);
     }
 
@@ -519,7 +531,58 @@ public class Host : MonoBehaviour
         }
     }
 
+    private void SimulateRemotePlayers(TickContext curTick)
+    {
+        var currentTick = curTick.Tick;
+        foreach (KeyValuePair<int, NetworkId> pair in _observerByConnection)
+        {
+            int connectionId = pair.Key;
+            NetworkId networkId = pair.Value;
 
+            if (networkId.Equals(_hostNetworkId))
+                continue;
+
+            // tick 입력 없으면 스킵
+            if (!TryGetInputMessage(connectionId, currentTick, out PlayerInputMessage inputMessage))
+                continue;
+
+            SendStateCalculate(inputMessage, networkId);
+
+            _hostLogger.Log(
+                $"<color=red>[Host]</color> Simulate Remote " +
+                $"conn={connectionId}, netId={networkId.Value}, tick={currentTick}"
+            );
+        }
+    }
+
+    // Client 입력 저장
+    private void StoreInputMessage(int connectionId, PlayerInputMessage inputMessage)
+    {
+        // connectionId에 해당하는 입력 저장소가 없으면 생성
+        if (!_inputMessageStore.TryGetValue(connectionId, out Dictionary<int, PlayerInputMessage> tickStore))
+        {
+            tickStore = new Dictionary<int, PlayerInputMessage>();
+            _inputMessageStore.Add(connectionId, tickStore);
+        }
+
+        // 같은 tick 입력이 다시 오면 최신값으로 덮어쓰기
+        tickStore[inputMessage.Tick] = inputMessage;
+
+        _hostLogger.Log(
+            $"<color=red>[Host]</color> Input Stored " +
+            $"conn={connectionId}, netId={inputMessage.NetworkId}, tick={inputMessage.Tick}, move={inputMessage.Move}"
+        );
+    }
+
+    private bool TryGetInputMessage(int connectionId, int tick, out PlayerInputMessage inputMessage)
+    {
+        inputMessage = default;
+
+        if (!_inputMessageStore.TryGetValue(connectionId, out Dictionary<int, PlayerInputMessage> tickStore))
+            return false;
+
+        return tickStore.TryGetValue(tick, out inputMessage);
+    }
     #endregion
 
     #region 입력
