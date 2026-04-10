@@ -38,7 +38,7 @@ namespace MultiplayerFramework.Samples
             ClientObj = prefabManager.CreateClient();
 
             _host = HostObj.GetComponent<Host>();
-            _client = ClientObj.GetComponent<Client>();
+            _client = ClientObj.GetComponentInChildren<Client>();
 
             _host.ConnectHost(this, address, port);
             _client.ConnectClient(address, port);

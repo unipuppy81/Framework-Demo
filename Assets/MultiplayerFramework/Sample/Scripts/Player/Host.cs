@@ -124,12 +124,15 @@ public class Host : MonoBehaviour
             ? $"<color=red>[Host]</color> Host started on port {port}"
             : $"<color=red>[Host]</color> Host start failed on port {port}");
 
+
+
         _hostNetworkId = _networkIdGenerator.Create();
         _hostNetObject = GetComponent<NetworkObject>();
         _hostNetObject.AssignNetworkId(_hostNetworkId);
         _networkObjectRegistry.Register(_hostNetObject);
         _observerByConnection[_hostNetworkId.Value] = _hostNetworkId;
-        Debug.LogError($"[Host] 현재 연결된 사람 수: {_observerByConnection.Count}");
+        _hostLogger.LogError($"[Host] 현재 연결된 사람 수: {_observerByConnection.Count} " +
+            $"\n호스트 네트워크 아이디 : {_hostNetworkId.Value}");
 
         if (result)
             _isStarted = false;
@@ -186,13 +189,13 @@ public class Host : MonoBehaviour
             _hostLogger.Log($"<color=red>[Host]</color> Join 요청 수신: {joinMessage.PlayerName}");
 
             NetworkId newClient = _networkIdGenerator.Create();
-            NetworkObject no = GameMgr.ClientObj.GetComponent<NetworkObject>();
+            NetworkObject no = GameMgr.ClientObj.GetComponentInChildren<NetworkObject>();
             no.AssignNetworkId(newClient);
             _networkObjectRegistry.Register(no);
             _observerByConnection[newClient.Value] = newClient;
 
             // 현재 연결 인원 수 출력
-            Debug.LogError($"[Host] 현재 연결된 사람 수: {_observerByConnection.Count}");
+            Debug.LogError($"<color=red>[Host]</color> 현재 연결된 사람 수: {_observerByConnection.Count} / newClient ID = {newClient.Value}");
 
             // 1. Join 결과 생성
             JoinResultMessage resultMessage = new JoinResultMessage(
@@ -366,9 +369,9 @@ public class Host : MonoBehaviour
                 );
 
         byte[] resultData = _hostSerializer.Serialize(resultEnvelope);
-        _hostLogger.Log($"<color=red>[Host]</color> Input-State Snapshot {_hostNetworkId.Value} {_hostPlayerTransform.position}");
+        _hostLogger.Log($"<color=red>[Host]</color> Input-State Snapshot Network ID : {_hostNetworkId.Value} / Position : {_hostPlayerTransform.position}");
 
-        foreach (KeyValuePair<int, NetworkId> pair in _observerByConnection)
+        foreach (var pair in _observerByConnection)
         {
             int connectionId = pair.Key;
             NetworkId observerNetworkId = pair.Value;
@@ -379,7 +382,7 @@ public class Host : MonoBehaviour
             // host가 visible 한지 검사
             if (_aoiSystem.IsVisible(connectionId, _hostNetworkId) == false)
                 continue;
-
+            
             if (_hostTransport.SendTo(connectionId, new ArraySegment<byte>(resultData)))
             {
                 _hostLogger.Log($"<color=red>[Host]</color> State Send Success conn={connectionId}");
@@ -395,7 +398,7 @@ public class Host : MonoBehaviour
     {
         if (!_playerStates.TryGetValue(senderId.Value, out PlayerStateSnapshot state))
         {
-            _hostLogger.LogError("<color=red>[Host]</color> client SendState is null");
+            _hostLogger.Log("<color=red>[Host]</color> client SendState is null");
             return;
         }
 
@@ -489,6 +492,7 @@ public class Host : MonoBehaviour
 
         // 1. host 입력 소모
         ConsumeHostInput(context);
+
 
         // 2. host authoritative 시뮬레이션
         SimulateHostWorld(context);

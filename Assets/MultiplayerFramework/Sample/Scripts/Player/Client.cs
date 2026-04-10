@@ -6,6 +6,7 @@ using MultiplayerFramework.Runtime.Gameplay.Input;
 using MultiplayerFramework.Runtime.Netcode.Messages;
 using MultiplayerFramework.Runtime.Netcode.Messages.Event;
 using MultiplayerFramework.Runtime.NetCode.Objects;
+using MultiplayerFramework.Runtime.Sample.Player;
 using MultiplayerFramework.Samples;
 using PlasticGui.WorkspaceWindow.PendingChanges.Changelists;
 using PlasticPipe.PlasticProtocol.Client;
@@ -54,6 +55,8 @@ public class Client : MonoBehaviour
     private int _pingSequence;
 
 
+    [Header("Remote Interpolation")]
+    [SerializeField] private RemoteInterpolationView _remoteHostView;
     private void Awake()
     {
         BindTick();
@@ -136,8 +139,9 @@ public class Client : MonoBehaviour
                 {
                     if (_serializerA.TryDeserializeT(dataReceivedEnvelope.Payload, out PlayerStateMessage stateMessage))
                     {
-                        PlayerStateSnapshot temp = stateMessage.Snapshot;
-                        _loggerA.Log($"<color=cyan>[Player A]</color> Receive Snapshot {temp.SenderNetworkId}, {temp.Hp}, {temp.Position}");
+                        PlayerStateSnapshot snapshot = stateMessage.Snapshot;
+                        _loggerA.LogError($"<color=cyan>[Player A]</color> [Snapshot Receive] tick={snapshot.Tick} pos={snapshot.Position}");
+                        _remoteHostView.PushSnapshot(snapshot);
                     }
                 }
                 break;

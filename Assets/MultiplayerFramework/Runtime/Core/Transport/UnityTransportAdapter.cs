@@ -23,7 +23,7 @@ namespace MultiplayerFramework.Runtime.Core.Transport
 
 
         private readonly Dictionary<int, NetworkConnection> _serverConnections = new();
-        private int _nextConnectionId = 1;
+        private int _nextConnectionId = 2;
 
 
         private readonly Queue<NetworkTransportEvent> _eventQueue = new();
@@ -171,13 +171,24 @@ namespace MultiplayerFramework.Runtime.Core.Transport
         public bool SendTo(int connectionId, ArraySegment<byte> payload)
         {
             if (!_isStarted || !_isHost)
+            {
+                UnityEngine.Debug.LogError("A");
                 return false;
+            }
+ 
 
             if (!_serverConnections.TryGetValue(connectionId, out NetworkConnection connection))
+            {
+                UnityEngine.Debug.LogError("B");
                 return false;
+            }
+     
 
             if (!connection.IsCreated)
+            {
+                UnityEngine.Debug.LogError("C");
                 return false;
+            }
 
             return SendToConnection(connection, payload);
         }
@@ -246,6 +257,7 @@ namespace MultiplayerFramework.Runtime.Core.Transport
             while ((acceptedConnection = _driver.Accept()) != default)
             {
                 int connectionId = _nextConnectionId++;
+                UnityEngine.Debug.LogError($"{connectionId} -> {acceptedConnection}");
                 _serverConnections.Add(connectionId, acceptedConnection);
 
                 _eventQueue.Enqueue(NetworkTransportEvent.CreateConnected(connectionId.ToString()));
@@ -339,14 +351,14 @@ namespace MultiplayerFramework.Runtime.Core.Transport
         {
             if (!connection.IsCreated)
             {
-                EnqueueDiagnostic("[Transport] BBB");
+                UnityEngine.Debug.LogError("[Transport] connection.IsCreated Failed.");
                 return false;
             }
 
 
             if (_driver.BeginSend(connection, out DataStreamWriter writer) != 0)
             {
-                EnqueueDiagnostic("[Transport] BeginSend failed.");
+                UnityEngine.Debug.LogError("[Transport] BeginSend Failed.");
                 return false;
             }
 
@@ -358,7 +370,7 @@ namespace MultiplayerFramework.Runtime.Core.Transport
             int result = _driver.EndSend(writer);
             if (result < 0)
             {
-                EnqueueDiagnostic($"[Transport] EndSend failed. Result={result}");
+                UnityEngine.Debug.LogError($"[Transport] EndSend failed. Result={result}");
                 return false;
             }
 

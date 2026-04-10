@@ -7,7 +7,6 @@ namespace MultiplayerFramework.Runtime.Netcode.Messages
     {
         public int Tick;
         public int SenderNetworkId;
-
         public float VerticalVelocity;
         public bool IsGrounded;
 
