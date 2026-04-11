@@ -13,39 +13,65 @@ namespace MultiplayerFramework.Samples.Scripts.UI
         [Header("UI")]
         [SerializeField] private TextMeshProUGUI _syncText;
         [SerializeField] private TextMeshProUGUI _trafficText;
-        [SerializeField] private TextMeshProUGUI _worldText;
-        [SerializeField] private TextMeshProUGUI _messageText;
-
-        [Header("Legacy")]
-        [SerializeField] private TextMeshProUGUI _tickText;
-        [SerializeField] private TextMeshProUGUI _rttText;
-        [SerializeField] private TextMeshProUGUI _packetText;
-        [SerializeField] private TextMeshProUGUI _spawnText;
 
         private RuntimeDiagnosticsCollector _diagnostics;
 
+        private void Awake()
+        {
+            ResolveDiagnostics();
+        }
+
         private void Update()
         {
-            RuntimeDiagnosticsCollector diagnostics = null;
+            if (_diagnostics == null)
+            {
+                ResolveDiagnostics();
+                if (_diagnostics == null)
+                    return;
+            }
 
-            if (_client != null)
-                diagnostics = _client.Diagnostics;
-            else if (_host != null)
-                diagnostics = _host.Diagnostics;
-
-            if (diagnostics == null)
-                return;
-
-            _tickText.text = $"Tick: {diagnostics.CurrentTick}";
-            _rttText.text = $"RTT: {diagnostics.RttMs:F1} ms";
-            _packetText.text = $"Packets Send / Received : {diagnostics.SentPacketCountPerSecond} / {diagnostics.ReceivedPacketCountPerSecond}";
-            _spawnText.text = $"Spawn Count: {diagnostics.SpawnCount}";
-            _messageText.text = $"Diag: {diagnostics.LastMessage}";
+            UpdateSyncText();
+            UpdateTrafficText();
         }
 
         public void Bind(RuntimeDiagnosticsCollector diagnostics)
         {
             _diagnostics = diagnostics;
+        }
+
+        private void ResolveDiagnostics()
+        {
+            // Bind()로 직접 주입된 값이 있으면 그 값을 우선 사용
+            if (_diagnostics != null)
+                return;
+
+            // Client 우선
+            if (_client != null)
+            {
+                _diagnostics = _client.Diagnostics;
+                return;
+            }
+
+            // 없으면 Host 사용
+            if (_host != null)
+            {
+                _diagnostics = _host.Diagnostics;
+            }
+        }
+
+        private void UpdateSyncText()
+        {
+            _syncText.text =
+                $"[Sync]\n" +
+                $"LocalTick: {_diagnostics.CurrentTick} | RemoteTick: {_diagnostics.RemoteTick} | RTT: {_diagnostics.RttMs:F0}ms";
+        }
+
+        private void UpdateTrafficText()
+        {
+            _trafficText.text =
+        $"[Traffic]\n" +
+        $"Send: {_diagnostics.SentPacketCountPerSecond} pkt/s (Total {_diagnostics.TotalSentPacketCount}) | " +
+        $"Recv: {_diagnostics.ReceivedPacketCountPerSecond} pkt/s (Total {_diagnostics.TotalReceivedPacketCount})";
         }
     }
 }

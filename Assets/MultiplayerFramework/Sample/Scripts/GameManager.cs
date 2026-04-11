@@ -43,9 +43,6 @@ namespace MultiplayerFramework.Samples
             _host = HostObj.GetComponent<Host>();
             _client = ClientObj.GetComponentInChildren<Client>();
 
-            _host.ConnectHost(this, address, port, simulationSettings);
-            _client.ConnectClient(address, port);
-
             if (_hostHud != null)
             {
                 _hostHud._host = _host;
@@ -59,6 +56,8 @@ namespace MultiplayerFramework.Samples
                 _clientHud.Bind(_client.Diagnostics);
             }
 
+            _host.ConnectHost(this, address, port, simulationSettings);
+            _client.ConnectClient(address, port);
         }
 
     }

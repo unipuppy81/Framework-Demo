@@ -85,14 +85,6 @@ namespace MultiplayerFramework.Runtime.Core.Transport
         }
 
         /// <summary>
-        /// 런타임 중 설정 변경용
-        /// </summary>
-        public void SetSimulationSettings(NetworkSimulationSettings settings)
-        {
-            _settings = settings;
-        }
-
-        /// <summary>
         /// 연결 해제는 inner transport에 그대로 위임
         /// </summary>
         public void Disconnect()
@@ -174,6 +166,12 @@ namespace MultiplayerFramework.Runtime.Core.Transport
             }
 
             int latencyMs = CalculateLatencyMs(_settings.BaseLatencyMs, _settings.JitterMs);
+            if (latencyMs <= 0)
+            {
+                _sentImmediatelyCount++;
+                return _inner.SendTo(connectionId, CloneSegment(payload));
+            }
+
             double deliverAtTime = Time.realtimeSinceStartupAsDouble + (latencyMs / 1000.0);
 
             _delayedSendToQueue.Add(
@@ -212,8 +210,16 @@ namespace MultiplayerFramework.Runtime.Core.Transport
                 if (packet.DeliverAtTime > now)
                     continue;
 
-                _inner.Send(packet.Payload);
-                _delayedSendQueue.RemoveAt(i);
+
+                if (_inner.Send(packet.Payload))
+                {
+                    _sentImmediatelyCount++;
+                    _delayedSendQueue.RemoveAt(i);
+                }
+                else
+                {
+                    UnityEngine.Debug.LogError("[SimulatedTransport] Flush delayed Send failed.");
+                }
             }
         }
 
@@ -234,8 +240,17 @@ namespace MultiplayerFramework.Runtime.Core.Transport
                 UnityEngine.Debug.LogError(
                     $"<color=red>[Host]</color> [SimulatedTransport] Flush delayed SendTo. target={packet.ConnectionId}");
 
-                _inner.SendTo(packet.ConnectionId, packet.Payload);
-                _delayedSendToQueue.RemoveAt(i);
+
+                if(_inner.SendTo(packet.ConnectionId, packet.Payload))
+                {
+                    _sentImmediatelyCount++;
+                    _delayedSendToQueue.RemoveAt(i);
+                }
+                else
+                {
+                    UnityEngine.Debug.LogError(
+                        $"<color=red>[Host]</color> [SimulatedTransport] Flush delayed SendTo failed. target={packet.ConnectionId}");
+                }
             }
         }
 

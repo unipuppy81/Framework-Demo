@@ -66,6 +66,7 @@ public class Host : MonoBehaviour
     [Header("Simulation Transport")]
     [SerializeField] private NetworkSimulationSettings simulationSettings;
     private SimulatedTransportAdapter _simulatedTransport;
+    private Dictionary<int, int> _lastProcessedInputTickByConnection = new();
 
 
 
@@ -121,6 +122,7 @@ public class Host : MonoBehaviour
         simulationSettings = set;
         _simulatedTransport = new SimulatedTransportAdapter(_hostTransport, simulationSettings);
         _hostSession = new NetworkSession(_simulatedTransport, _hostSerializer);
+        _lastProcessedInputTickByConnection = new Dictionary<int, int>();
         //_hostSession = new NetworkSession(_hostTransport, _hostSerializer);
 
 
@@ -150,6 +152,7 @@ public class Host : MonoBehaviour
 
     private void ReceivedNetworkEnvelope(int connectionId, NetworkEnvelope envelope)
     {
+        _diagnostics.ReportRemoteTick(envelope.Tick);
         _diagnostics.ReportPacketReceived();
 
         switch (envelope.Type)
@@ -206,6 +209,7 @@ public class Host : MonoBehaviour
 
             // 현재 연결 인원 수 출력
             Debug.LogError($"<color=red>[Host]</color> 현재 연결된 사람 수: {_observerByConnection.Count} / newClient ID = {newClient.Value}");
+            _diagnostics.ReportVisibleCount(_observerByConnection.Count);
 
             // 1. Join 결과 생성
             JoinResultMessage resultMessage = new JoinResultMessage(
@@ -228,13 +232,17 @@ public class Host : MonoBehaviour
 
             // 3. 응답 전송
             byte[] resultData = _hostSerializer.Serialize(resultEnvelope);
-            //if (_hostTransport.SendTo(connectionId, new ArraySegment<byte>(resultData)))
             if (_hostSession.SendTo(connectionId, new ArraySegment<byte>(resultData)))
             {
                 _hostLogger.Log("<color=red>[Host]</color> Join 승인 응답 전송");
+                _diagnostics.ReportPacketSent();
 
                 if (resultMessage.Success)
+                {
+                    _diagnostics.ReportPacketSent();
                     SendSpawn(connectionId, newClient);
+                }
+
             }
             else
             {
@@ -268,9 +276,10 @@ public class Host : MonoBehaviour
                 );
 
         byte[] resultData = _hostSerializer.Serialize(resultEnvelope);
-        //if (_hostTransport.SendTo(connectionId, new ArraySegment<byte>(resultData)))
+
         if (_hostSession.SendTo(connectionId, new ArraySegment<byte>(resultData)))
         {
+            _diagnostics.ReportPacketSent();
             _hostLogger.Log("<color=red>[Host]</color> SpawnMessage 전송 성공");
         }
         else
@@ -341,11 +350,10 @@ public class Host : MonoBehaviour
         );
 
         byte[] data = _hostSerializer.Serialize(envelope);
-        _diagnostics.ReportPacketSent();
 
-        //if (_hostTransport.SendTo(connectionID, new ArraySegment<byte>(data)))
         if (_hostSession.SendTo(connectionID, new ArraySegment<byte>(data)))
         {
+            _diagnostics.ReportPacketSent();
             _hostLogger.Log("<color=red>[Host]</color> Pong Message Send Succeeded");
         }
         else
@@ -397,9 +405,9 @@ public class Host : MonoBehaviour
             if (_aoiSystem.IsVisible(connectionId, _hostNetworkId) == false)
                 continue;
 
-            //if (_hostTransport.SendTo(connectionId, new ArraySegment<byte>(resultData)))
             if (_hostSession.SendTo(connectionId, new ArraySegment<byte>(resultData)))
             {
+                _diagnostics.ReportPacketSent();
                 _hostLogger.Log($"<color=red>[Host]</color> State Send Success conn={connectionId}");
             }
             else
@@ -479,9 +487,9 @@ public class Host : MonoBehaviour
         byte[] resultData = _hostSerializer.Serialize(resultEnvelope);
         int connect = _networkToConnectionId[senderId];
 
-        //if (_hostTransport.SendTo(connect, new ArraySegment<byte>(resultData)))
         if (_hostSession.SendTo(connect, new ArraySegment<byte>(resultData)))
         {
+            _diagnostics.ReportPacketSent();
             _hostLogger.Log("<color=red>[Host]</color> Snapshot Callback Message Send Successed");
         }
         else
@@ -562,11 +570,14 @@ public class Host : MonoBehaviour
             if (networkId.Equals(_hostNetworkId))
                 continue;
 
-            // tick 입력 없으면 스킵
-            if (!TryGetInputMessage(connectionId, currentTick, out PlayerInputMessage inputMessage))
+            if (!TryGetNextConsumableInputMessage(connectionId, currentTick, out PlayerInputMessage inputMessage))
                 continue;
 
             SendStateCalculate(inputMessage, networkId);
+
+            // 마지막 처리 tick 기록
+            _lastProcessedInputTickByConnection[connectionId] = inputMessage.Tick;
+            CleanupProcessedInputMessages(connectionId);
 
             _hostLogger.Log(
                 $"<color=red>[Host]</color> Simulate Remote " +
@@ -602,6 +613,43 @@ public class Host : MonoBehaviour
             return false;
 
         return tickStore.TryGetValue(tick, out inputMessage);
+    }
+
+    private bool TryGetNextConsumableInputMessage(int connectionId, int currentTick, out PlayerInputMessage inputMessage)
+    {
+        inputMessage = default;
+
+        if (_inputMessageStore.TryGetValue(connectionId, out Dictionary<int, PlayerInputMessage> tickStore) == false)
+            return false;
+
+        // 마지막 처리 tick. 없으면 -1부터 시작
+        int lastProcessedTick = -1;
+        _lastProcessedInputTickByConnection.TryGetValue(connectionId, out lastProcessedTick);
+
+        int bestTick = int.MaxValue;
+        bool found = false;
+
+        foreach (KeyValuePair<int, PlayerInputMessage> pair in tickStore)
+        {
+            int tick = pair.Key;
+
+            // 아직 처리 안 했고, 현재 host tick 이하인 입력만 대상
+            if (tick <= lastProcessedTick)
+                continue;
+
+            if (tick > currentTick)
+                continue;
+
+            // 처리 가능한 입력 중 가장 오래된 tick부터 소비
+            if (tick < bestTick)
+            {
+                bestTick = tick;
+                inputMessage = pair.Value;
+                found = true;
+            }
+        }
+
+        return found;
     }
     #endregion
 
@@ -705,9 +753,9 @@ public class Host : MonoBehaviour
 
         if (_networkToConnectionId.TryGetValue(targetId, out int connectionId))
         {
-            //if (_hostTransport.SendTo(connectionId, new ArraySegment<byte>(resultData)))
             if (_hostSession.SendTo(connectionId, new ArraySegment<byte>(resultData)))
             {
+                _diagnostics.ReportPacketSent();
                 _hostLogger.Log($"<color=red>[Host]</color> Damage State Send Success Target={targetId.Value}");
             }
             else
@@ -743,6 +791,7 @@ public class Host : MonoBehaviour
 
         if (_networkToConnectionId.TryGetValue(targetId, out int connectionId))
         {
+            _diagnostics.ReportPacketSent();
             _hostSession.SendTo(connectionId, new ArraySegment<byte>(data));
         }
     }
@@ -794,4 +843,34 @@ public class Host : MonoBehaviour
         Gizmos.DrawWireSphere(center, 15);
     }
     #endregion
+
+    private void CleanupProcessedInputMessages(int connectionId)
+    {
+        if (_inputMessageStore.TryGetValue(connectionId, out Dictionary<int, PlayerInputMessage> tickStore) == false)
+            return;
+
+        if (_lastProcessedInputTickByConnection.TryGetValue(connectionId, out int lastProcessedTick) == false)
+            return;
+
+        List<int> removeKeys = null;
+
+        foreach (KeyValuePair<int, PlayerInputMessage> pair in tickStore)
+        {
+            if (pair.Key > lastProcessedTick)
+                continue;
+
+            if (removeKeys == null)
+                removeKeys = new List<int>();
+
+            removeKeys.Add(pair.Key);
+        }
+
+        if (removeKeys == null)
+            return;
+
+        for (int i = 0; i < removeKeys.Count; i++)
+        {
+            tickStore.Remove(removeKeys[i]);
+        }
+    }
 }

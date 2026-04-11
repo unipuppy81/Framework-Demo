@@ -67,9 +67,6 @@ public class Client : MonoBehaviour
     {   
         SendPing();
         _sessionA?.Poll();
-
-        //_transportA?.Poll();
-        //ConsumeEvent_PlayerA();
     }
 
     public void ConnectClient(string address, ushort port)
@@ -91,19 +88,12 @@ public class Client : MonoBehaviour
                : $"<color=cyan>[Player A]</color> Client start failed. Target={address} : {port}");
 
     }
-    private void ConsumeEvent_PlayerA()
-    {
-        if (_transportA == null)
-            return;
-
-        while (_transportA.TryDequeueEvent(out NetworkTransportEvent e))
-        {
-            // HandleEvent_PlayerA(e);
-        }
-    }
 
     private void ReceivedNetworkEnvelope(int connectionId, NetworkEnvelope dataReceivedEnvelope)
     {
+        _diagnostics.ReportRemoteTick(dataReceivedEnvelope.Tick);
+        _diagnostics.ReportPacketReceived();
+
         switch (dataReceivedEnvelope.Type)
         {
             case NetworkMessageType.JoinResult:
@@ -185,8 +175,6 @@ public class Client : MonoBehaviour
 
             case NetworkMessageType.Pong:
                 {
-                    _diagnostics.ReportPacketReceived();
-
                     if (_serializerA.TryDeserializeT(dataReceivedEnvelope.Payload, out PongMessage pongMessage))
                     {
                         float rttMs = (Time.realtimeSinceStartup - pongMessage.SentTime) * 1000;
@@ -210,6 +198,7 @@ public class Client : MonoBehaviour
         NetworkEnvelope connectedEnvelope = new NetworkEnvelope(NetworkMessageType.Join, testSenderID, 0, connectedPayload);
         if(_sessionA.Send(connectedEnvelope))
         {
+            _diagnostics.ReportPacketSent();
             _loggerA.Log($"<color=cyan>[Player A]</color> Send Join to Host");
         }
         else
@@ -240,16 +229,9 @@ public class Client : MonoBehaviour
             NetworkEnvelope connectedEnvelope = new NetworkEnvelope(NetworkMessageType.Ping, _playerANetworkId, -99, message);
             byte[] connectedData = _serializerA.Serialize(connectedEnvelope);
 
-            _loggerA.Log($"<color=cyan>[Player A]</color>[Ping Send] sentTime={pingMessage.SentTime}");
-
             _transportA.Send(new System.ArraySegment<byte>(connectedData));
-
             _diagnostics.ReportPacketSent();
-
-            _loggerA.Log($"<color=cyan>[Player A]</color> °¡ ping Àü¼Û");
         }
-
-        
     }
 
 
@@ -323,6 +305,7 @@ public class Client : MonoBehaviour
         byte[] resultData = _serializerA.Serialize(resultEnvelope);
         if (_transportA.Send(new ArraySegment<byte>(resultData)))
         {
+            _diagnostics.ReportPacketSent();
             _loggerA.Log("<color=cyan>[Player A]</color> Input-State Message Send Successed");
         }
         else
