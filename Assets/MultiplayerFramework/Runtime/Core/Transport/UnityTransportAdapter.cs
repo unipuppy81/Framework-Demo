@@ -257,7 +257,6 @@ namespace MultiplayerFramework.Runtime.Core.Transport
             while ((acceptedConnection = _driver.Accept()) != default)
             {
                 int connectionId = _nextConnectionId++;
-                UnityEngine.Debug.LogError($"{connectionId} -> {acceptedConnection}");
                 _serverConnections.Add(connectionId, acceptedConnection);
 
                 _eventQueue.Enqueue(NetworkTransportEvent.CreateConnected(connectionId.ToString()));
@@ -354,7 +353,6 @@ namespace MultiplayerFramework.Runtime.Core.Transport
                 UnityEngine.Debug.LogError("[Transport] connection.IsCreated Failed.");
                 return false;
             }
-
 
             if (_driver.BeginSend(connection, out DataStreamWriter writer) != 0)
             {

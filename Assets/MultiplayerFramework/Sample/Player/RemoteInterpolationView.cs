@@ -71,7 +71,7 @@ namespace MultiplayerFramework.Runtime.Sample.Player
             {
                 _logTimer = 0f;
 
-                Debug.LogError(
+                Debug.LogWarning(
                     $"<color=cyan>[Interpolation]</color> " +
                     $"\ncurrentTick={_clientTickScheduler.CurrentTick} " +
                     $"\nrenderTick={renderTick:F2} " +

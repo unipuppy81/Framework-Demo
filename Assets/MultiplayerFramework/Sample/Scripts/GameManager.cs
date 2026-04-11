@@ -32,6 +32,9 @@ namespace MultiplayerFramework.Samples
         [SerializeField] private NetworkDiagnosticsHud _clientHud;
 
 
+        [Header("Simulation")]
+        [SerializeField] private NetworkSimulationSettings simulationSettings;
+
         private void Start()
         {
             HostObj = prefabManager.CreateHost();
@@ -40,7 +43,7 @@ namespace MultiplayerFramework.Samples
             _host = HostObj.GetComponent<Host>();
             _client = ClientObj.GetComponentInChildren<Client>();
 
-            _host.ConnectHost(this, address, port);
+            _host.ConnectHost(this, address, port, simulationSettings);
             _client.ConnectClient(address, port);
 
             if (_hostHud != null)

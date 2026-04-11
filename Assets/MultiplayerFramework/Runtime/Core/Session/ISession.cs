@@ -40,6 +40,9 @@ namespace MultiplayerFramework.Runtime.Core.Session
         void Connect(string endpoint);
         void Disconnect();
         bool Send(NetworkEnvelope message);
+
+        bool SendTo(int connectionId, ArraySegment<byte> payload);
+
         /// <summary>
         /// 확인해서 처리하는 함수
         /// </summary>

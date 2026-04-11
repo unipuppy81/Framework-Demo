@@ -10,6 +10,7 @@ using MultiplayerFramework.Runtime.NetCode.Objects;
 using MultiplayerFramework.Samples;
 using System;
 using System.Collections.Generic;
+using UnityEditor.MemoryProfiler;
 using UnityEngine;
 
 
@@ -62,6 +63,11 @@ public class Host : MonoBehaviour
     private Dictionary<NetworkId, int> _networkToConnectionId = new(); // ObjectId , playerId
     private Dictionary<int, PlayerStateSnapshot> _playerStates; // networkId, playerstatesnapshot
 
+    [Header("Simulation Transport")]
+    [SerializeField] private NetworkSimulationSettings simulationSettings;
+    private SimulatedTransportAdapter _simulatedTransport;
+
+
 
     [Header("AOI")]
     private AOISystem _aoiSystem;
@@ -102,19 +108,23 @@ public class Host : MonoBehaviour
         }
     }
 
-    public void ConnectHost(GameManager gm, string address, ushort port)
+    public void ConnectHost(GameManager gm, string address, ushort port, NetworkSimulationSettings set)
     {
         _hostTransport = new UnityTransportAdapter();
         _hostSerializer = new JsonMessageSerializer();
-        _hostSession = new NetworkSession(_hostTransport, _hostSerializer);
         _hostLogger = new SessionDiagnosticsLogger();
         _networkIdGenerator = new NetworkIdGenerator();
         _networkObjectRegistry = new NetworkObjectRegistry();
         _networkConnectionGenerator = new NetworkConnectionGenerator();
         PrefabMgr = new PrefabManager();
         GameMgr = gm;
+        simulationSettings = set;
+        _simulatedTransport = new SimulatedTransportAdapter(_hostTransport, simulationSettings);
+        _hostSession = new NetworkSession(_simulatedTransport, _hostSerializer);
+        //_hostSession = new NetworkSession(_hostTransport, _hostSerializer);
 
-        //bool result = _hostTransport.StartHost(port);
+
+
         bool result = _hostSession.ConnectNetwork(address, port, true);
 
         _hostSession.OnMessageReceived += ReceivedNetworkEnvelope;
@@ -131,7 +141,7 @@ public class Host : MonoBehaviour
         _hostNetObject.AssignNetworkId(_hostNetworkId);
         _networkObjectRegistry.Register(_hostNetObject);
         _observerByConnection[_hostNetworkId.Value] = _hostNetworkId;
-        _hostLogger.LogError($"[Host] 현재 연결된 사람 수: {_observerByConnection.Count} " +
+        _hostLogger.LogError($"<color=red>[Host]</color> 현재 연결된 사람 수: {_observerByConnection.Count} " +
             $"\n호스트 네트워크 아이디 : {_hostNetworkId.Value}");
 
         if (result)
@@ -218,7 +228,8 @@ public class Host : MonoBehaviour
 
             // 3. 응답 전송
             byte[] resultData = _hostSerializer.Serialize(resultEnvelope);
-            if (_hostTransport.SendTo(connectionId, new ArraySegment<byte>(resultData)))
+            //if (_hostTransport.SendTo(connectionId, new ArraySegment<byte>(resultData)))
+            if (_hostSession.SendTo(connectionId, new ArraySegment<byte>(resultData)))
             {
                 _hostLogger.Log("<color=red>[Host]</color> Join 승인 응답 전송");
 
@@ -257,7 +268,8 @@ public class Host : MonoBehaviour
                 );
 
         byte[] resultData = _hostSerializer.Serialize(resultEnvelope);
-        if (_hostTransport.SendTo(connectionId, new ArraySegment<byte>(resultData)))
+        //if (_hostTransport.SendTo(connectionId, new ArraySegment<byte>(resultData)))
+        if (_hostSession.SendTo(connectionId, new ArraySegment<byte>(resultData)))
         {
             _hostLogger.Log("<color=red>[Host]</color> SpawnMessage 전송 성공");
         }
@@ -298,6 +310,7 @@ public class Host : MonoBehaviour
 
         byte[] data = _hostSerializer.Serialize(envelope);
 
+        //if (_hostTransport.Broadcast(new ArraySegment<byte>(data)))
         if (_hostTransport.Broadcast(new ArraySegment<byte>(data)))
         {
             _hostLogger.Log("<color=red>[Host]</color> Event Message Send Succeeded");
@@ -330,7 +343,8 @@ public class Host : MonoBehaviour
         byte[] data = _hostSerializer.Serialize(envelope);
         _diagnostics.ReportPacketSent();
 
-        if (_hostTransport.SendTo(connectionID, new ArraySegment<byte>(data)))
+        //if (_hostTransport.SendTo(connectionID, new ArraySegment<byte>(data)))
+        if (_hostSession.SendTo(connectionID, new ArraySegment<byte>(data)))
         {
             _hostLogger.Log("<color=red>[Host]</color> Pong Message Send Succeeded");
         }
@@ -382,8 +396,9 @@ public class Host : MonoBehaviour
             // host가 visible 한지 검사
             if (_aoiSystem.IsVisible(connectionId, _hostNetworkId) == false)
                 continue;
-            
-            if (_hostTransport.SendTo(connectionId, new ArraySegment<byte>(resultData)))
+
+            //if (_hostTransport.SendTo(connectionId, new ArraySegment<byte>(resultData)))
+            if (_hostSession.SendTo(connectionId, new ArraySegment<byte>(resultData)))
             {
                 _hostLogger.Log($"<color=red>[Host]</color> State Send Success conn={connectionId}");
             }
@@ -464,7 +479,8 @@ public class Host : MonoBehaviour
         byte[] resultData = _hostSerializer.Serialize(resultEnvelope);
         int connect = _networkToConnectionId[senderId];
 
-        if (_hostTransport.SendTo(connect, new ArraySegment<byte>(resultData)))
+        //if (_hostTransport.SendTo(connect, new ArraySegment<byte>(resultData)))
+        if (_hostSession.SendTo(connect, new ArraySegment<byte>(resultData)))
         {
             _hostLogger.Log("<color=red>[Host]</color> Snapshot Callback Message Send Successed");
         }
@@ -689,7 +705,8 @@ public class Host : MonoBehaviour
 
         if (_networkToConnectionId.TryGetValue(targetId, out int connectionId))
         {
-            if (_hostTransport.SendTo(connectionId, new ArraySegment<byte>(resultData)))
+            //if (_hostTransport.SendTo(connectionId, new ArraySegment<byte>(resultData)))
+            if (_hostSession.SendTo(connectionId, new ArraySegment<byte>(resultData)))
             {
                 _hostLogger.Log($"<color=red>[Host]</color> Damage State Send Success Target={targetId.Value}");
             }
@@ -726,7 +743,7 @@ public class Host : MonoBehaviour
 
         if (_networkToConnectionId.TryGetValue(targetId, out int connectionId))
         {
-            _hostTransport.SendTo(connectionId, new ArraySegment<byte>(data));
+            _hostSession.SendTo(connectionId, new ArraySegment<byte>(data));
         }
     }
     #endregion

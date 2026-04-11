@@ -66,6 +66,11 @@ namespace MultiplayerFramework.Runtime.Core.Session
             return _transport.Send(serializedData);
         }
 
+        public bool SendTo(int connectionId, ArraySegment<byte> payload)
+        {
+            return _transport.SendTo(connectionId, payload);
+        }
+
         public void Poll()
         {
             _transport?.Poll();

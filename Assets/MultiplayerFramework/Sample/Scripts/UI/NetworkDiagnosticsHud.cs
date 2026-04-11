@@ -6,14 +6,21 @@ namespace MultiplayerFramework.Samples.Scripts.UI
 {
     public class NetworkDiagnosticsHud : MonoBehaviour
     {
+        [Header("Source")]
         public Host _host;
         public Client _client;
 
+        [Header("UI")]
+        [SerializeField] private TextMeshProUGUI _syncText;
+        [SerializeField] private TextMeshProUGUI _trafficText;
+        [SerializeField] private TextMeshProUGUI _worldText;
+        [SerializeField] private TextMeshProUGUI _messageText;
+
+        [Header("Legacy")]
         [SerializeField] private TextMeshProUGUI _tickText;
         [SerializeField] private TextMeshProUGUI _rttText;
         [SerializeField] private TextMeshProUGUI _packetText;
         [SerializeField] private TextMeshProUGUI _spawnText;
-        [SerializeField] private TextMeshProUGUI _messageText;
 
         private RuntimeDiagnosticsCollector _diagnostics;
 

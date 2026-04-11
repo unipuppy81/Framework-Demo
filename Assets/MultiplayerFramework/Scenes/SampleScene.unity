@@ -529,13 +529,20 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   prefabManager: {fileID: 147826434}
   address: 127.0.0.1
-  port: 7950
+  port: 7954
   HostObj: {fileID: 0}
   ClientObj: {fileID: 0}
   _host: {fileID: 0}
   _client: {fileID: 0}
   _hostHud: {fileID: 120574872}
   _clientHud: {fileID: 653199795}
+  simulationSettings:
+    Enabled: 1
+    BaseLatencyMs: 80
+    JitterMs: 30
+    PacketLossRate: 0
+    ApplyLatency: 1
+    ApplyLoss: 0
 --- !u!114 &147826434
 MonoBehaviour:
   m_ObjectHideFlags: 0

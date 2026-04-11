@@ -140,7 +140,7 @@ public class Client : MonoBehaviour
                     if (_serializerA.TryDeserializeT(dataReceivedEnvelope.Payload, out PlayerStateMessage stateMessage))
                     {
                         PlayerStateSnapshot snapshot = stateMessage.Snapshot;
-                        _loggerA.LogError($"<color=cyan>[Player A]</color> [Snapshot Receive] tick={snapshot.Tick} pos={snapshot.Position}");
+                        _loggerA.Log($"<color=cyan>[Player A]</color> [Snapshot Receive] tick={snapshot.Tick} pos={snapshot.Position}");
                         _remoteHostView.PushSnapshot(snapshot);
                     }
                 }
