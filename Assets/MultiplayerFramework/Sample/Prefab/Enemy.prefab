@@ -222,6 +222,9 @@ MonoBehaviour:
   _playerATickScheduler: {fileID: 4904979289479513576}
   _playerA_Name: PlayerA
   _playerANetObject: {fileID: 5758740537083475092}
+  _playerARenderer: {fileID: 3384965093084172191}
+  whiteMaterial: {fileID: 2100000, guid: 7fa080c8d22870646804c87b693f3918, type: 2}
+  redMaterial: {fileID: 2100000, guid: 581984be7bc55454f8cfe30fbfd95208, type: 2}
   _playerATransform: {fileID: 0}
   _playerAHp: 100
   _playerAMoveSpeed: 5

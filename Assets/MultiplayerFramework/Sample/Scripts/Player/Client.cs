@@ -36,6 +36,11 @@ public class Client : MonoBehaviour
     private NetworkId _playerANetworkId;
     [SerializeField] private NetworkObject _playerANetObject;
 
+    [Header("머티리얼 설정")]
+    [SerializeField] private Renderer _playerARenderer;
+    public Material whiteMaterial;
+    public Material redMaterial;  
+
     [Header("Input")]
     private readonly InputBuffer _playerAInputBuffer = new();
     private PlayerInputCommand _lastConsumedCommandA;
@@ -61,10 +66,13 @@ public class Client : MonoBehaviour
     {
         BindTick();
         _diagnostics = new RuntimeDiagnosticsCollector();
+
+        if (whiteMaterial != null)
+            _playerARenderer.material = whiteMaterial;
     }
 
     void Update()
-    {   
+    {
         SendPing();
         _sessionA?.Poll();
     }
@@ -141,9 +149,9 @@ public class Client : MonoBehaviour
                     {
                         switch (gameEventMessage.EventType)
                         {
-                            case GameplayEventType.Jump:
+                            case GameplayEventType.Hit:
                                 {
-                                    _loggerA.LogError($"<color=cyan>[Player A]</color> Receive Jump");
+                                    StartCoroutine(ChangeColorRoutine());
                                 }
                                 break;
                         }
@@ -178,7 +186,7 @@ public class Client : MonoBehaviour
                     if (_serializerA.TryDeserializeT(dataReceivedEnvelope.Payload, out PongMessage pongMessage))
                     {
                         float rttMs = (Time.realtimeSinceStartup - pongMessage.SentTime) * 1000;
-                       
+
                         _diagnostics.ReportRtt(rttMs);
                     }
                 }
@@ -190,13 +198,13 @@ public class Client : MonoBehaviour
 
     private void SendJoinMessage()
     {
-       JoinMessage joinMessage = new JoinMessage(_playerA_Name);
+        JoinMessage joinMessage = new JoinMessage(_playerA_Name);
         byte[] connectedPayload = _serializerA.SerializeT(joinMessage);
 
         NetworkId testSenderID = new NetworkId(9999);
 
         NetworkEnvelope connectedEnvelope = new NetworkEnvelope(NetworkMessageType.Join, testSenderID, 0, connectedPayload);
-        if(_sessionA.Send(connectedEnvelope))
+        if (_sessionA.Send(connectedEnvelope))
         {
             _diagnostics.ReportPacketSent();
             _loggerA.Log($"<color=cyan>[Player A]</color> Send Join to Host");
@@ -314,4 +322,11 @@ public class Client : MonoBehaviour
         }
     }
 
+
+    IEnumerator ChangeColorRoutine()
+    {
+        _playerARenderer.material = redMaterial;
+        yield return new WaitForSeconds(0.75f);
+        _playerARenderer.material = whiteMaterial;
+    }
 }

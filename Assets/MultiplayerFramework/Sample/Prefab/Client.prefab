@@ -141,9 +141,21 @@ PrefabInstance:
     m_TransformParent: {fileID: 2825940272018769229}
     m_Modifications:
     - target: {fileID: -6187690499585932216, guid: 970c2267b2ff2d1439db93ca239a3b55, type: 3}
+      propertyPath: whiteMaterial
+      value: 
+      objectReference: {fileID: 2100000, guid: 7fa080c8d22870646804c87b693f3918, type: 2}
+    - target: {fileID: -6187690499585932216, guid: 970c2267b2ff2d1439db93ca239a3b55, type: 3}
       propertyPath: _remoteHostView
       value: 
       objectReference: {fileID: 144456797729132812}
+    - target: {fileID: -6187690499585932216, guid: 970c2267b2ff2d1439db93ca239a3b55, type: 3}
+      propertyPath: _playerARenderer
+      value: 
+      objectReference: {fileID: 4683984151266385552}
+    - target: {fileID: -6187690499585932216, guid: 970c2267b2ff2d1439db93ca239a3b55, type: 3}
+      propertyPath: _playerATransform
+      value: 
+      objectReference: {fileID: 4509903455604036688}
     - target: {fileID: -6187690499585932216, guid: 970c2267b2ff2d1439db93ca239a3b55, type: 3}
       propertyPath: _clientAGameObject
       value: 
@@ -216,5 +228,10 @@ MonoBehaviour:
 --- !u!4 &4509903455604036688 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 5868032371088819551, guid: 970c2267b2ff2d1439db93ca239a3b55, type: 3}
+  m_PrefabInstance: {fileID: 8068503389826961679}
+  m_PrefabAsset: {fileID: 0}
+--- !u!23 &4683984151266385552 stripped
+MeshRenderer:
+  m_CorrespondingSourceObject: {fileID: 3384965093084172191, guid: 970c2267b2ff2d1439db93ca239a3b55, type: 3}
   m_PrefabInstance: {fileID: 8068503389826961679}
   m_PrefabAsset: {fileID: 0}

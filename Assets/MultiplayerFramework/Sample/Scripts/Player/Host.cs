@@ -304,7 +304,7 @@ public class Host : MonoBehaviour
         GameplayEventMessage message = new GameplayEventMessage(
             tick: _tick,
             networkId: 1,
-            eventType: GameplayEventType.Jump,
+            eventType: GameplayEventType.Hit,
             value: 0
         );
 
@@ -553,7 +553,7 @@ public class Host : MonoBehaviour
         }
 
         // 3. ¿Ã∫•∆Æ
-        if (_lastConsumedCommand.JumpPressed)
+        if (_lastConsumedCommand.AttackPressed)
         {
             SendJumpEvent(context.Tick);
         }
